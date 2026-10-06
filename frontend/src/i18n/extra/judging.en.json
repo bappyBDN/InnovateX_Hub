@@ -110,6 +110,13 @@
     "chooseAnother": "Add another person",
     "addMany": "Add {{count}} judges",
     "averageScore": "Average score",
-    "averageHelp": "{{scored}} of {{total}} judges have scored. The average is used for shortlisting."
+    "averageHelp": "{{scored}} of {{total}} judges have scored. The average is used for shortlisting.",
+    "chooseJudges": "Choose judges",
+    "entryTitle": "Judges for {{code}}",
+    "entryHelp": "Choose one or many judges for this submission, with a due date. Each judge scores it and sees it under My judging. The average of their scores is its score.",
+    "entryEmpty": "No judges chosen for this entry yet.",
+    "addEntryTitle": "Add judges for {{code}}",
+    "addEntryHelp": "Pick people from the list. They score this entry only.",
+    "entryStaffTitle": "Judges and scores"
   }
 }

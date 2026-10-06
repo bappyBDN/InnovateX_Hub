@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.errors import DomainError
 from app.core.events import audit
-from app.core.permissions import CurrentUser, require_roles
+from app.core.permissions import CurrentUser, get_entry_or_404, require_roles
 from app.modules.challenges.router import get_challenge
 from app.modules.evaluation import judging
 from app.shared.access import get_initiative_or_404
@@ -123,6 +123,37 @@ def remove_idea_judge(key: str, user_id: str, request: Request, cu: CurrentUser 
     ini, _ = get_initiative_or_404(db, cu, key)
     result = judging.remove_idea_judge(db, ini, user_id)
     audit(db, cu.id, "UPDATE", "initiative", ini.id, f"Removed a judge from {ini.code}", {"judge": [user_id, None]},
+          request.state.request_id)
+    db.commit()
+    return result
+
+
+# ---- One challenge entry (same as an idea) ---------------------------------------------------------
+@router.get("/entries/{entry_id}/judges")
+def list_entry_judges(entry_id: str, cu: CurrentUser = Depends(require_roles(*VIEWERS)), db: Session = Depends(get_db)):
+    entry = get_entry_or_404(db, cu, entry_id)
+    return {**judging.entry_judges(db, entry), "can_edit": cu.has_role(*ADMIN)}
+
+
+@router.post("/entries/{entry_id}/judges")
+def add_entry_judges(entry_id: str, body: JudgesIn, request: Request, cu: CurrentUser = Depends(require_roles(*ADMIN)),
+                     db: Session = Depends(get_db)):
+    entry = get_entry_or_404(db, cu, entry_id)
+    if not body.user_ids:
+        raise DomainError("NO_ONE_CHOSEN", "Choose at least one person.")
+    result = judging.add_entry_judges(db, entry, body.user_ids, body.due_days, cu.id)
+    audit(db, cu.id, "UPDATE", "challenge_entry", entry.id, f"Chose {result['created']} judge(s) for {entry.code}", {},
+          request.state.request_id)
+    db.commit()
+    return {**result, "invited": [], "invalid_emails": []}
+
+
+@router.delete("/entries/{entry_id}/judges/{user_id}")
+def remove_entry_judge(entry_id: str, user_id: str, request: Request, cu: CurrentUser = Depends(require_roles(*ADMIN)),
+                       db: Session = Depends(get_db)):
+    entry = get_entry_or_404(db, cu, entry_id)
+    result = judging.remove_entry_judge(db, entry, user_id)
+    audit(db, cu.id, "UPDATE", "challenge_entry", entry.id, f"Removed a judge from {entry.code}", {"judge": [user_id, None]},
           request.state.request_id)
     db.commit()
     return result

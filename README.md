@@ -129,6 +129,8 @@ under review, clarification requested, shortlisted, on hold, Idea Bank, prototyp
 
 ## 2c-1. Challenge flow, start to finish
 
+(The challenge now works the same way as an idea: the admin can also choose one or many judges **for each submission** — Control centre → Entries → *Choose judges*, or on the entry page — with a due date; the average of their scores is the entry's score. Challenge-wide judges on the *Judges* tab still work for sharing every entry at once.)
+
 1. **Methodology submitted** → the Super Admin / DMD chooses one or many judges (challenge → *Judges* tab; stage *Methodology*). Entries are shared out automatically.
 2. **Judges score** the methodology. **Top N:** on the round results page the admin sets *Change Top N* (and waitlist), then the system proposes the shortlist; a person confirms and publishes.
 3. **Shortlisted candidates get the demo form** (demo link + how to use it) on their *Demo & pilot* page. The admin chooses the judges and sends it; judges **approve or reject** (or send back) with feedback. Approved → *Finalist* (and eligible for the pilot).

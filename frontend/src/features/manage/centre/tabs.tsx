@@ -27,6 +27,7 @@ import {
 } from '@/components/ui';
 import { formatDateTime, fromLocalInputValue } from '@/utils/dates';
 import { num, statusLabel } from '@/utils/format';
+import { EntryJudgesDialog } from '@/features/judging/IdeaJudgesDialog';
 import type { ActivityRow, AssignResult, EntryRow, QuestionRow, RoundInfo, TabProps } from './types';
 
 // ── Entries ─────────────────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ export function EntriesTab({ detail, refresh }: TabProps) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [target, setTarget] = useState<EntryRow | null>(null);
+  const [judgesFor, setJudgesFor] = useState<EntryRow | null>(null);
   const [reason, setReason] = useState('');
   const list = useQuery({
     queryKey: queryKeys.challenges.entries(detail.id),
@@ -87,6 +89,23 @@ export function EntriesTab({ detail, refresh }: TabProps) {
       sortValue: (r) => r.current_score ?? -1,
       render: (r) => <span className="tabular">{r.current_score == null ? '—' : `${num(r.current_score, 1)}${r.current_rank ? ` · #${r.current_rank}` : ''}`}</span>,
     },
+    {
+      key: 'judges',
+      header: '',
+      render: (r: EntryRow) =>
+        ['UNDER_REVIEW', 'CLARIFICATION_REQUESTED', 'FINAL_SUBMITTED'].includes(r.status_code) ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              setJudgesFor(r);
+            }}
+          >
+            {t('judging.chooseJudges')}
+          </Button>
+        ) : null,
+    } satisfies Column<EntryRow>,
     ...(detail.can_manage
       ? [
           {
@@ -112,6 +131,7 @@ export function EntriesTab({ detail, refresh }: TabProps) {
 
   return (
     <>
+      {judgesFor && <EntryJudgesDialog entryId={judgesFor.id} entryCode={judgesFor.code} onClose={() => setJudgesFor(null)} onDone={() => void list.refetch()} />}
       <DataTable
         columns={columns}
         rows={list.data?.items}

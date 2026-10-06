@@ -15,18 +15,31 @@ import type { AddJudgesResult, IdeaJudges } from './types';
  * Judges of one idea: add a person from a dropdown list, see who judges it, remove them, invite others by email.
  * Used inside the dialog on the idea page and on the admin Judges page. Only the admin can change anything.
  */
-export function IdeaJudgesPanel({ ideaKey, ideaCode, onDone }: { ideaKey: string; ideaCode: string; onDone?: () => void }) {
+export function IdeaJudgesPanel({
+  ideaKey,
+  ideaCode,
+  onDone,
+  base = `/initiatives/${ideaKey}`,
+  kind = 'idea',
+}: {
+  ideaKey: string;
+  ideaCode: string;
+  onDone?: () => void;
+  /** API path of the thing being judged. An idea by default; `/entries/{id}` for a challenge entry. */
+  base?: string;
+  kind?: 'idea' | 'entry';
+}) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [inviting, setInviting] = useState(false);
-  const key = ['ideas', ideaKey, 'judges'] as const;
-  const list = useQuery({ queryKey: key, queryFn: () => api.get<IdeaJudges>(`/initiatives/${ideaKey}/judges`) });
+  const key = [kind === 'entry' ? 'entries' : 'ideas', ideaKey, 'judges'] as const;
+  const list = useQuery({ queryKey: key, queryFn: () => api.get<IdeaJudges>(`${base}/judges`) });
   const reload = () => {
     onDone?.();
     return qc.invalidateQueries({ queryKey: key });
   };
   const remove = useMutation({
-    mutationFn: (userId: string) => api.del(`/initiatives/${ideaKey}/judges/${userId}`),
+    mutationFn: (userId: string) => api.del(`${base}/judges/${userId}`),
     onSuccess: async () => {
       toast.success(t('judging.removed'));
       await reload();
@@ -45,7 +58,7 @@ export function IdeaJudgesPanel({ ideaKey, ideaCode, onDone }: { ideaKey: string
   if (list.isError) return <ErrorState error={list.error} onRetry={() => void list.refetch()} />;
   const d = list.data;
   if (!d) return <Skeleton className="h-24 w-full" />;
-  const submit = (payload: unknown) => api.post<AddJudgesResult>(`/initiatives/${ideaKey}/judges`, payload);
+  const submit = (payload: unknown) => api.post<AddJudgesResult>(`${base}/judges`, payload);
 
   return (
     <div className="space-y-4">
@@ -54,7 +67,7 @@ export function IdeaJudgesPanel({ ideaKey, ideaCode, onDone }: { ideaKey: string
           <QuickAddJudge excludeIds={d.judges.map((j) => j.user.id)} submit={submit} onDone={() => void reload()} />
         </div>
       )}
-      {d.judges.length === 0 && d.invites.length === 0 && <p className="text-sm text-ink-muted">{t('judging.ideaEmpty')}</p>}
+      {d.judges.length === 0 && d.invites.length === 0 && <p className="text-sm text-ink-muted">{t(kind === 'entry' ? 'judging.entryEmpty' : 'judging.ideaEmpty')}</p>}
       {d.total > 0 && (
         <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-panel border border-line bg-primary-soft px-4 py-3">
           <span className="text-sm text-ink">
@@ -104,15 +117,15 @@ export function IdeaJudgesPanel({ ideaKey, ideaCode, onDone }: { ideaKey: string
           </ul>
         </div>
       )}
-      {d.can_edit && (
+      {d.can_edit && kind !== 'entry' && (
         <Button variant="secondary" size="sm" icon={<Mail className="h-4 w-4" aria-hidden />} onClick={() => setInviting(true)}>
           {t('judging.inviteButton')}
         </Button>
       )}
       {inviting && (
         <AddJudgesDialog
-          title={t('judging.addIdeaTitle', { code: ideaCode })}
-          description={t('judging.addIdeaHelp')}
+          title={t(kind === 'entry' ? 'judging.addEntryTitle' : 'judging.addIdeaTitle', { code: ideaCode })}
+          description={t(kind === 'entry' ? 'judging.addEntryHelp' : 'judging.addIdeaHelp')}
           excludeIds={d.judges.map((j) => j.user.id)}
           withDueDays
           submit={submit}
@@ -140,6 +153,27 @@ export function IdeaJudgesDialog({ ideaKey, ideaCode, onClose, onDone }: { ideaK
       }
     >
       <IdeaJudgesPanel ideaKey={ideaKey} ideaCode={ideaCode} onDone={onDone} />
+    </Dialog>
+  );
+}
+
+/** Choose judges for one challenge entry: one or many, with a due date. Same as for an idea. */
+export function EntryJudgesDialog({ entryId, entryCode, onClose, onDone }: { entryId: string; entryCode: string; onClose: () => void; onDone?: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <Dialog
+      open
+      onOpenChange={(o) => !o && onClose()}
+      title={t('judging.entryTitle', { code: entryCode })}
+      description={t('judging.entryHelp')}
+      size="lg"
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          {t('common.close')}
+        </Button>
+      }
+    >
+      <IdeaJudgesPanel ideaKey={entryId} ideaCode={entryCode} base={`/entries/${entryId}`} kind="entry" onDone={onDone} />
     </Dialog>
   );
 }

@@ -271,6 +271,23 @@ for row in res["results"]:
         call("owner", "POST", f"/round-results/{row['id']}/resolve-discussion", {"resolution": "CHAIR_DECISION", "note": "Resolved by the chair."})
 res = call("owner", "GET", f"/review-rounds/{round2['id']}/results")
 assert res["can_propose"], res["propose_blockers"]
+# One entry, one or many judges chosen by the admin - the same way as for an idea.
+eid = res["results"][0]["entry"]["id"]
+users = {u["full_name"]: u["id"] for u in call("owner", "GET", "/users?q=&limit=50")["items"]}
+before = call("owner", "GET", f"/entries/{eid}/judges")
+call("owner", "POST", f"/entries/{eid}/judges", {"user_ids": [users["Tahmina Begum"]]}, expect=404, label="only the admin chooses judges")
+call("admin", "POST", f"/entries/{eid}/judges", {"user_ids": []}, expect=400, label="choose someone")
+added = call("admin", "POST", f"/entries/{eid}/judges", {"user_ids": [users["Tahmina Begum"], users["Jahid Islam"]], "due_days": 7})
+assert added["created"] == 2, added
+after = call("owner", "GET", f"/entries/{eid}/judges")
+assert after["total"] == before["total"] + 2 and not after["can_edit"]
+assert any(x["id"] for x in call("finance", "GET", "/me/review-queue")["items"] if x["entity"]["id"] == eid)
+call("admin", "DELETE", f"/entries/{eid}/judges/{users['Tahmina Begum']}")
+call("admin", "DELETE", f"/entries/{eid}/judges/{users['Jahid Islam']}")
+assert call("owner", "GET", f"/entries/{eid}/judges")["total"] == before["total"]
+submitted = next((j for j in after["judges"] if j["status"] == "SUBMITTED"), None)
+if submitted:
+    call("admin", "DELETE", f"/entries/{eid}/judges/{submitted['user']['id']}", expect=409, label="submitted scores stay")
 n_now = res["rule"]["top_n"]
 call("judge1", "PATCH", f"/review-rounds/{round2['id']}/shortlist-rule", {"top_n": n_now}, expect=404, label="judges can't change the rule")
 call("owner", "PATCH", f"/review-rounds/{round2['id']}/shortlist-rule", {"top_n": 0}, expect=422, label="Top N is at least 1")

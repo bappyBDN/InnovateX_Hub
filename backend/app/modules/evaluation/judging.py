@@ -276,6 +276,71 @@ def add_idea_judges(db: Session, ini: Initiative, user_ids: list[str], due_days:
     return {"added": [db.get(User, u).full_name for u in added], "created": len(added), "skipped": skipped, "blocked": skipped}
 
 
+def entry_round(db: Session, entry: ChallengeEntry) -> ReviewRound:
+    """The scoring round this entry is waiting in: Methodology review, or the Final jury."""
+    kind = next((k for k, states in svc.ELIGIBLE.items() if k != "PROTOTYPE" and entry.status_code in states), None)
+    rnd = csvc.round_of(db, entry.challenge_id, kind) if kind else None
+    if not rnd:
+        raise DomainError("NOT_WAITING_FOR_SCORES", "This entry is not waiting for scores right now.", 409)
+    return rnd
+
+
+def add_entry_judges(db: Session, entry: ChallengeEntry, user_ids: list[str], due_days: int, actor_id: str | None) -> dict:
+    """The admin picks one or many judges for this one entry, the same way as for an idea."""
+    rnd = entry_round(db, entry)
+    due = utcnow() + timedelta(days=max(1, min(due_days or 10, 90)))
+    added, skipped = [], []
+    for uid in dict.fromkeys(user_ids):
+        user = db.get(User, uid)
+        if not user or not user.is_active:
+            continue
+        reason = svc.conflict_reason(db, uid, "challenge_entry", entry.id)
+        if reason:
+            skipped.append({"name": user.full_name, "reviewer": user.full_name, "reason": reason})
+            continue
+        if db.scalar(select(ReviewAssignment.id).where(ReviewAssignment.review_round_id == rnd.id,
+                                                       ReviewAssignment.reviewer_user_id == uid,
+                                                       ReviewAssignment.entity_id == entry.id)):
+            continue
+        db.add(ReviewAssignment(review_round_id=rnd.id, reviewer_user_id=uid, entity_type="challenge_entry",
+                                entity_id=entry.id, status="ASSIGNED", due_at=due, reviewer_weight=1, created_by=actor_id,
+                                submission_version_id=svc.latest_version_id(db, entry.id, rnd.round_type)))
+        added.append(uid)
+    if added:
+        if rnd.status == "SETUP":
+            rnd.status = "IN_PROGRESS"
+        publish_event(db, "REVIEW_ASSIGNED", "challenge_entry", entry.id, actor_id, users=added,
+                      title=f"You are a judge: {entry.code}", body=entry.title, link="/review", needs_action=True,
+                      vars={"entry_code": entry.code, "round": en(rnd.name_i18n), "due_date": iso(due)})
+    db.flush()
+    _recalc(db, rnd)
+    return {"added": [db.get(User, u).full_name for u in added], "created": len(added), "skipped": skipped, "blocked": skipped}
+
+
+def remove_entry_judge(db: Session, entry: ChallengeEntry, user_id: str) -> dict:
+    rnd = entry_round(db, entry)
+    dropped = _drop_open(db, [rnd.id], user_id, entity_id=entry.id)
+    if not dropped:
+        raise DomainError("SCORE_ALREADY_SUBMITTED", "This judge already submitted a score, so they can't be removed.", 409)
+    _recalc(db, rnd)
+    return {"removed_open_reviews": dropped}
+
+
+def entry_judges(db: Session, entry: ChallengeEntry) -> dict:
+    judges = []
+    for a in db.scalars(select(ReviewAssignment).where(ReviewAssignment.entity_type == "challenge_entry",
+                                                       ReviewAssignment.entity_id == entry.id,
+                                                       ReviewAssignment.status != "DECLINED_COI")
+                        .order_by(ReviewAssignment.created_at)).all():
+        summary = db.scalar(select(ReviewSummary).where(ReviewSummary.review_assignment_id == a.id))
+        judges.append({"user": user_brief(db, a.reviewer_user_id), "status": a.status, "due_at": iso(a.due_at),
+                       "score": summary.weighted_score if summary and a.status == "SUBMITTED" else None})
+    judges = [j for j in judges if j["user"]]
+    scores = [j["score"] for j in judges if j["score"] is not None]
+    return {"judges": judges, "invites": [], "average_score": round(sum(scores) / len(scores), 2) if scores else None,
+            "scored": len(scores), "total": len(judges)}
+
+
 def remove_idea_judge(db: Session, ini: Initiative, user_id: str) -> dict:
     rnd = idea_round(db)
     dropped = _drop_open(db, [rnd.id], user_id, entity_id=ini.id)

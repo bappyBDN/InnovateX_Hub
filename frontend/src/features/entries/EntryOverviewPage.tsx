@@ -21,7 +21,10 @@ import {
   PageSkeleton,
   Textarea,
 } from '@/components/ui';
+import { IdeaJudgesPanel } from '@/features/judging/IdeaJudgesDialog';
+import { JudgeFeedbackPanel } from '@/features/judging/JudgeFeedbackPanel';
 import NotFoundPage from '@/features/misc/NotFoundPage';
+import { useAccess } from '@/auth';
 import { formatDateTime } from '@/utils/dates';
 import { tr } from '@/utils/i18n';
 import type { Clarification, EntryDetail, SubmissionInfo } from './types';
@@ -123,6 +126,7 @@ export default function EntryOverviewPage() {
     if (q.data?.show_shortlist_moment) setMoment(true);
   }, [q.data?.show_shortlist_moment]);
 
+  const { hasRole } = useAccess();
   const withdraw = useMutation({
     mutationFn: () => api.post(`/entries/${id}/actions/withdraw`, { reason }),
     onSuccess: () => {
@@ -139,6 +143,7 @@ export default function EntryOverviewPage() {
   if (q.isError || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
 
   const e = q.data;
+  const staff = hasRole('SUPER_ADMIN', 'PROGRAM_OWNER', 'EXECUTIVE');
   const step = e.next_step;
   const needsReason = !e.is_lead; // privileged withdrawal on behalf needs a reason
   const stepTone = step.tone === 'danger' ? 'danger' : step.tone === 'warning' ? 'warning' : step.tone === 'success' ? 'success' : 'info';
@@ -279,6 +284,21 @@ export default function EntryOverviewPage() {
             </ul>
           )}
         </Card>
+
+        {staff && (
+          <Card>
+            <CardHeader title={t('judging.entryStaffTitle')} subtitle={t('judging.entryHelp')} />
+            <div className="mt-4 space-y-6">
+              {['UNDER_REVIEW', 'CLARIFICATION_REQUESTED', 'FINAL_SUBMITTED'].includes(e.status_code) && (
+                <IdeaJudgesPanel ideaKey={e.id} ideaCode={e.code} base={`/entries/${e.id}`} kind="entry" />
+              )}
+              <div className="border-t border-line pt-4">
+                <h3 className="mb-3 font-semibold text-ink">{t('judgeFeedback.title')}</h3>
+                <JudgeFeedbackPanel entityType="challenge_entry" entityId={e.id} />
+              </div>
+            </div>
+          </Card>
+        )}
 
         <Card>
           <AttachmentList entityType="challenge_entry" entityId={e.id} canEdit={e.is_member && e.status_code !== 'WITHDRAWN'} title={t('entries.files')} />
