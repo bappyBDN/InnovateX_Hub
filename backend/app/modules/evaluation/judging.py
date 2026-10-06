@@ -55,7 +55,10 @@ def is_judging(db: Session, user_id: str) -> bool:
     if db.scalar(select(ReviewAssignment.id).where(ReviewAssignment.reviewer_user_id == user_id,
                                                    ReviewAssignment.status != "DECLINED_COI").limit(1)):
         return True
+    from app.modules.delivery.models import KpiVerifierAssignment
     from app.modules.evaluation.gates import is_gate_judge
+    if db.scalar(select(KpiVerifierAssignment.id).where(KpiVerifierAssignment.verifier_user_id == user_id).limit(1)):
+        return True                         # chosen to verify a KPI measurement
     return is_gate_judge(db, user_id)       # chosen for a prototype or pilot review
 
 

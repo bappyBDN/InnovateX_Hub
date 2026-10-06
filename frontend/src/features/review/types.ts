@@ -23,6 +23,8 @@ export interface QueueItem {
   overdue_days: number;
   /** True for a prototype or pilot review: a decision with feedback, not a score. */
   gate?: boolean;
+  /** True for a KPI measurement the admin chose this person to verify. */
+  kpi?: boolean;
 }
 
 export interface QueueResponse {

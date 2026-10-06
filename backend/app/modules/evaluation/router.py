@@ -63,6 +63,8 @@ def review_queue(cu: CurrentUser = Depends(get_current_user), db: Session = Depe
                       "entity": brief, "overdue_days": overdue_days})
     from app.modules.evaluation.gates import my_queue_items
     items += my_queue_items(db, cu.id)     # prototype and pilot reviews: a decision, not a score
+    from app.modules.delivery.router import my_queue_items as my_kpi_items
+    items += my_kpi_items(db, cu.id)       # KPI measurements the admin chose this person to verify
     week = now + timedelta(days=7)
     open_items = [i for i in items if i["status"] != "SUBMITTED"]
     summary = {

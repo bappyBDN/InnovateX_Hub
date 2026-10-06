@@ -94,6 +94,7 @@ export const router = createBrowserRouter([
       // Open to everyone who is signed in: the list shows only what the person was chosen to judge.
       { path: '/review', element: page(() => import('@/features/review/ReviewQueuePage')) },
       { path: '/review/decision/:voteId', element: page(() => import('@/features/gates/GateDecisionPage')) },
+      { path: '/review/kpi/:measurementId', element: page(() => import('@/features/impact/KpiVerificationPage')) },
       { path: '/review/:assignmentId', element: page(() => import('@/features/review/ScoringWorkspacePage')) },
       { path: '/submissions', element: guard(SEES_ALL, page(() => import('@/features/submissions/SubmissionsBrowserPage'))) },
       { path: '/submissions/:id', element: guard(SEES_ALL, page(() => import('@/features/submissions/SubmissionViewPage'))) },

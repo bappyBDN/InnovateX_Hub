@@ -82,7 +82,7 @@ export default function ReviewQueuePage() {
   if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
   const { summary } = query.data!;
 
-  const open = (r: QueueItem) => (r.gate ? `/review/decision/${r.id}` : `/review/${r.id}`);
+  const open = (r: QueueItem) => (r.kpi ? `/review/kpi/${r.id}` : r.gate ? `/review/decision/${r.id}` : `/review/${r.id}`);
   const columns: Column<QueueItem>[] = [
     {
       key: 'code',
@@ -114,7 +114,7 @@ export default function ReviewQueuePage() {
       render: (r) => (r.entity.type === 'initiative' ? t('review.openIdea') : tr(r.entity.context_i18n, r.entity.context)),
       hideOnMobile: true,
     },
-    { key: 'round', header: t('review.colRound'), render: (r) => (r.gate ? <Badge tone="spark">{r.round_name}</Badge> : r.round_name) },
+    { key: 'round', header: t('review.colRound'), render: (r) => (r.gate || r.kpi ? <Badge tone="spark">{r.round_name}</Badge> : r.round_name) },
     {
       key: 'due',
       header: t('review.colDue'),
@@ -142,7 +142,7 @@ export default function ReviewQueuePage() {
       align: 'right',
       render: (r) => (
         <span className="inline-flex flex-wrap items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-          {r.status !== 'SUBMITTED' && !r.gate && (
+          {r.status !== 'SUBMITTED' && !r.gate && !r.kpi && (
             <Button
               variant="ghost"
               size="sm"
@@ -153,7 +153,7 @@ export default function ReviewQueuePage() {
             />
           )}
           <ButtonLink to={open(r)} size="sm" variant={r.status === 'SUBMITTED' ? 'secondary' : 'primary'}>
-            {r.status === 'SUBMITTED' ? t('review.view') : r.gate ? t('gates.decide') : r.status === 'IN_PROGRESS' ? t('review.continue') : t('review.start')}
+            {r.status === 'SUBMITTED' ? t('review.view') : r.gate || r.kpi ? t('gates.decide') : r.status === 'IN_PROGRESS' ? t('review.continue') : t('review.start')}
           </ButtonLink>
         </span>
       ),

@@ -473,11 +473,23 @@ call("owner", "POST", f"/initiatives/{code}/actions/go_live", {}, expect=409, la
 call("anika", "POST", f"/kpis/{k['id']}/measurements", {"measured_value": 310000, "note": "October"})
 call("owner", "POST", f"/initiatives/{code}/actions/go_live", {})
 call("owner", "POST", f"/initiatives/{code}/actions/verify_impact", {}, expect=409, label="needs a verified measurement")
-q = call("finance", "GET", "/impact")
-m = next(x for x in q["verify_queue"] if x["initiative"]["code"] == code)
-call("anika", "POST", f"/measurements/{m['measurement']['id']}/verify", {"status": "VERIFIED"}, expect=404)
-call("finance", "POST", f"/measurements/{m['measurement']['id']}/verify", {"status": "ADJUSTED", "verification_type": "FINANCE"}, expect=400)
-call("finance", "POST", f"/measurements/{m['measurement']['id']}/verify",
+# Nobody is picked automatically: the admin chooses the verifier, and it then shows in that person's judging panel.
+assert not any(x["initiative"]["code"] == code for x in call("finance", "GET", "/impact")["verify_queue"]), "not assigned yet"
+m = next(x for x in call("admin", "GET", "/impact")["verify_queue"] if x["initiative"]["code"] == code)
+mid = m["measurement"]["id"]
+call("finance", "POST", f"/measurements/{mid}/verify", {"status": "VERIFIED"}, expect=404, label="only the chosen verifier")
+call("owner", "POST", f"/measurements/{mid}/verifier", {"user_id": users["Jahid Islam"]}, expect=404, label="only the admin chooses")
+call("admin", "POST", f"/measurements/{mid}/verifier", {"user_id": users["Tahmina Begum"]})
+call("admin", "POST", f"/measurements/{mid}/verifier", {"user_id": users["Jahid Islam"]})   # changed her mind
+call("admin", "POST", f"/measurements/{mid}/verifier", {"user_id": users["Anika Tabassum"]}, expect=422, label="not the owner")
+assert not any(x.get("kpi") for x in call("hr", "GET", "/me/review-queue")["items"]), "the first choice no longer sees it"
+mine = [x for x in call("finance", "GET", "/me/review-queue")["items"] if x.get("kpi") and x["id"] == mid]
+assert mine and mine[0]["status"] == "ASSIGNED", "it shows in the verifier's judging panel"
+assert call("finance", "GET", f"/kpi-verifications/{mid}")["can_decide"]
+call("hr", "GET", f"/kpi-verifications/{mid}", expect=404)
+call("anika", "POST", f"/measurements/{mid}/verify", {"status": "VERIFIED"}, expect=404)
+call("finance", "POST", f"/measurements/{mid}/verify", {"status": "ADJUSTED", "verification_type": "FINANCE"}, expect=400)
+call("finance", "POST", f"/measurements/{mid}/verify",
      {"status": "ADJUSTED", "verification_type": "FINANCE", "verified_value": 320000, "note": "Excluded one-off stock sale."})
 call("finance", "POST", f"/initiatives/{code}/actions/verify_impact", {})
 call("owner", "POST", f"/initiatives/{code}/catalogue", {"asset_type": "PROCESS", "impact_summary": "BDT 80,000 saved per month."})

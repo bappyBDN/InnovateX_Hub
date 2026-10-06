@@ -6,11 +6,13 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api, errorMessage } from '@/api/client';
 import { queryKeys } from '@/api/queryKeys';
+import { useAccess } from '@/auth';
 import { StatusBadge } from '@/components/domain';
 import { Button, ButtonLink, Card, Dialog, EmptyState, ErrorState, Field, Input, PageHeader, PageSkeleton, Select, Tabs, Textarea } from '@/components/ui';
 import { formatDate } from '@/utils/dates';
 import { num } from '@/utils/format';
 import { AddKpiDialog, KpiCard, type KpiItem, type Measurement } from './KpiParts';
+import { AssignVerifier } from './AssignVerifier';
 
 interface ImpactIdea {
   id: string;
@@ -21,7 +23,9 @@ interface ImpactIdea {
   kpis: KpiItem[];
   can_edit: boolean;
 }
-interface QueueItem {
+export interface QueueItem {
+  can_decide?: boolean;
+  can_assign?: boolean;
   measurement: Measurement;
   kpi: { id: string; name: string; unit_code: string; baseline_value: number | null; target_value: number | null };
   initiative: { code: string; title: string };
@@ -33,7 +37,7 @@ interface ImpactData {
   can_verify: boolean;
 }
 type Tab = 'mine' | 'verify' | 'portfolio';
-type Decision = 'VERIFIED' | 'ADJUSTED' | 'REJECTED';
+export type Decision = 'VERIFIED' | 'ADJUSTED' | 'REJECTED';
 
 export default function ImpactPage() {
   const { t } = useTranslation();
@@ -41,6 +45,7 @@ export default function ImpactPage() {
   const [addKpiFor, setAddKpiFor] = useState<ImpactIdea | null>(null);
   const [deciding, setDeciding] = useState<{ item: QueueItem; decision: Decision } | null>(null);
 
+  const me = useAccess().me;
   const impact = useQuery({ queryKey: queryKeys.impact, queryFn: () => api.get<ImpactData>('/impact') });
 
   if (impact.isLoading) return <PageSkeleton rows={5} />;
@@ -137,15 +142,21 @@ export default function ImpactPage() {
                     {t('impact.queue.recordedBy', { name: q.measurement.measured_by_name ?? '—' })}
                     {q.measurement.note ? ` — ${q.measurement.note}` : ''}
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => setDeciding({ item: q, decision: 'VERIFIED' })}>{t('impact.queue.verify')}</Button>
-                    <Button variant="secondary" onClick={() => setDeciding({ item: q, decision: 'ADJUSTED' })}>
-                      {t('impact.queue.adjust')}
-                    </Button>
-                    <Button variant="secondary" onClick={() => setDeciding({ item: q, decision: 'REJECTED' })}>
-                      {t('impact.queue.reject')}
-                    </Button>
-                  </div>
+                  <p className="text-sm text-ink-muted">
+                    {q.measurement.assigned_verifier ? t('kpiVerify.waitingFor', { name: q.measurement.assigned_verifier.full_name }) : t('kpiVerify.noVerifier')}
+                  </p>
+                  {q.can_assign && <AssignVerifier measurementId={q.measurement.id} current={q.measurement.assigned_verifier} />}
+                  {q.can_decide && q.measurement.assigned_verifier?.id === me?.id && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button onClick={() => setDeciding({ item: q, decision: 'VERIFIED' })}>{t('impact.queue.verify')}</Button>
+                      <Button variant="secondary" onClick={() => setDeciding({ item: q, decision: 'ADJUSTED' })}>
+                        {t('impact.queue.adjust')}
+                      </Button>
+                      <Button variant="secondary" onClick={() => setDeciding({ item: q, decision: 'REJECTED' })}>
+                        {t('impact.queue.reject')}
+                      </Button>
+                    </div>
+                  )}
                 </Card>
               </li>
             ))}
@@ -167,7 +178,7 @@ function Fact({ label, value, unit, strong }: { label: string; value: number | n
   );
 }
 
-function VerifyDialog({ item, decision, onClose }: { item: QueueItem; decision: Decision; onClose: () => void }) {
+export function VerifyDialog({ item, decision, onClose }: { item: QueueItem; decision: Decision; onClose: () => void }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [type, setType] = useState('BUSINESS');

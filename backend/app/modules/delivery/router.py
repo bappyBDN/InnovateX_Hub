@@ -13,10 +13,11 @@ from app.core.events import audit, publish_event, record_history
 from app.core.permissions import CurrentUser, get_current_user, get_entry_or_404, is_entry_member, require_roles
 from app.modules.challenges import service as csvc
 from app.modules.challenges.models import Challenge, ChallengeEntry, ChallengePrize, EntrySubmission, Team
-from app.modules.delivery.models import (AwardCategory, AwardDecision, DemoEvent, DemoSlot, Kpi, KpiMeasurement,
+from app.modules.delivery.models import (AwardCategory, AwardDecision, DemoEvent, DemoSlot, Kpi, KpiMeasurement, KpiVerifierAssignment,
                                          Milestone, ProgressUpdate, ReusableAsset, Reward)
 from app.modules.evaluation import service as esvc
 from app.modules.evaluation.models import Feedback, ReviewRound, RoundResult
+from app.modules.identity.models import User
 from app.modules.initiatives.models import Initiative, InitiativeMember
 from app.shared.access import check_entity_access, initiative_role
 from app.shared.models.base import iso, row, utcnow
@@ -230,6 +231,13 @@ class KpiIn(BaseModel):
     is_primary: bool = False
 
 
+def _assigned_id(db: Session, measurement_id: str) -> str | None:
+    """Who the admin chose to verify this measurement (the latest choice), or None."""
+    a = db.scalar(select(KpiVerifierAssignment).where(KpiVerifierAssignment.measurement_id == measurement_id)
+                  .order_by(KpiVerifierAssignment.created_at.desc()))
+    return a.verifier_user_id if a else None
+
+
 def _kpi(db: Session, k: Kpi) -> dict:
     ms = db.scalars(select(KpiMeasurement).where(KpiMeasurement.kpi_id == k.id).order_by(KpiMeasurement.period_end)).all()
     latest = ms[-1] if ms else None
@@ -239,6 +247,7 @@ def _kpi(db: Session, k: Kpi) -> dict:
             "is_verified": bool(verified),
             "measurements": [{**row(m, exclude=("created_by", "updated_by")),
                               "verifier": (user_brief(db, m.verifier_user_id) or {}).get("full_name"),
+                              "assigned_verifier": user_brief(db, _assigned_id(db, m.id)) if m.verification_status == "UNVERIFIED" else None,
                               "measured_by_name": (user_brief(db, m.measured_by) or {}).get("full_name")} for m in ms]}
 
 
@@ -305,10 +314,11 @@ def add_measurement(kpi_id: str, body: MeasurementIn, cu: CurrentUser = Depends(
     if not m.period_end:
         m.period_end = utcnow().date()
     db.add(m)
-    from app.modules.initiatives.router import _role_users
-    verifiers = list(dict.fromkeys(_role_users(db, "FINANCE_VERIFIER") + _role_users(db, "PROGRAM_OWNER")))
-    publish_event(db, "KPI_MEASURED", k.entity_type, k.entity_id, cu.id, users=verifiers,
-                  title=f"Measurement to verify: {k.name}", body=f"{body.measured_value:g} {k.unit_code} recorded.",
+    from app.modules.evaluation.gates import admin_ids
+    # Nobody is picked automatically: the Super Admin / DMD chooses who verifies it.
+    publish_event(db, "KPI_MEASURED", k.entity_type, k.entity_id, cu.id, users=admin_ids(db),
+                  title=f"Measurement waiting for a verifier: {k.name}",
+                  body=f"{body.measured_value:g} {k.unit_code} recorded. Choose who verifies it.",
                   link="/impact", needs_action=True)
     db.commit()
     return {"id": m.id}
@@ -321,16 +331,56 @@ class VerifyIn(BaseModel):
     note: str | None = None
 
 
-@router.post("/measurements/{measurement_id}/verify")
-def verify_measurement(measurement_id: str, body: VerifyIn, request: Request,
-                       cu: CurrentUser = Depends(require_roles(*VERIFIERS)), db: Session = Depends(get_db)):
-    """RB-06: a benefit is 'Verified' only when an authorised verifier confirms it."""
+class VerifierIn(BaseModel):
+    user_id: str
+
+
+@router.post("/measurements/{measurement_id}/verifier")
+def choose_verifier(measurement_id: str, body: VerifierIn, request: Request,
+                    cu: CurrentUser = Depends(require_roles("SUPER_ADMIN")), db: Session = Depends(get_db)):
+    """The Super Admin / DMD chooses who verifies a KPI measurement. It then shows in that person's judging panel."""
     m = db.get(KpiMeasurement, measurement_id)
     if not m:
         raise not_found("Measurement")
     k = db.get(Kpi, m.kpi_id)
+    if m.verification_status != "UNVERIFIED":
+        raise DomainError("ALREADY_VERIFIED", "This measurement was already checked.", 409)
+    user = db.get(User, body.user_id)
+    if not user or not user.is_active:
+        raise DomainError("USER_NOT_FOUND", "Choose a person with an active account.", 422)
+    from app.modules.evaluation import service as esvc
+    if body.user_id == m.measured_by or body.user_id in esvc.people_of(db, k.entity_type, k.entity_id):
+        raise DomainError("CONFLICT_OF_INTEREST", "A person can't verify a measurement of their own idea.", 422)
+    previous = _assigned_id(db, m.id)
+    if previous == body.user_id:
+        return {"ok": True, "unchanged": True}
+    for old in db.scalars(select(KpiVerifierAssignment).where(KpiVerifierAssignment.measurement_id == m.id)).all():
+        db.delete(old)
+    db.add(KpiVerifierAssignment(measurement_id=m.id, verifier_user_id=body.user_id, assigned_by=cu.id, created_by=cu.id))
+    audit(db, cu.id, "CONFIG_CHANGE", "kpi_measurement", m.id, f"Chose {user.full_name} to verify '{k.name}'",
+          {"verifier": [previous, body.user_id]}, request.state.request_id)
+    publish_event(db, "KPI_VERIFIER_ASSIGNED", k.entity_type, k.entity_id, cu.id, users=[body.user_id],
+                  title=f"KPI to verify: {k.name}",
+                  body=f"{m.measured_value:g} {k.unit_code} recorded. Open it under My judging and verify, adjust or reject it.",
+                  link="/review", needs_action=True)
+    db.commit()
+    return {"ok": True, "verifier": user_brief(db, body.user_id)}
+
+
+@router.post("/measurements/{measurement_id}/verify")
+def verify_measurement(measurement_id: str, body: VerifyIn, request: Request,
+                       cu: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """RB-06: a benefit is 'Verified' only when the person the admin chose (or the admin) confirms it."""
+    m = db.get(KpiMeasurement, measurement_id)
+    if not m:
+        raise not_found("Measurement")
+    if _assigned_id(db, m.id) != cu.id and not cu.has_role("SUPER_ADMIN"):
+        raise not_found("Measurement")
+    k = db.get(Kpi, m.kpi_id)
     if body.status not in ("VERIFIED", "ADJUSTED", "REJECTED"):
         raise DomainError("INVALID_STATUS", "Choose Verify, Adjust or Reject.")
+    if m.verification_status != "UNVERIFIED":
+        raise DomainError("ALREADY_VERIFIED", "This measurement was already checked.", 409)
     if m.measured_by == cu.id:
         raise DomainError("SELF_VERIFICATION", "You can't verify a measurement you recorded yourself.")
     if body.status == "ADJUSTED" and body.verified_value is None:
@@ -352,8 +402,10 @@ def verify_measurement(measurement_id: str, body: VerifyIn, request: Request,
 @router.get("/impact")
 def impact_overview(cu: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     """Owners see their own ideas in pilot/production; verifiers get a queue of measurements to check."""
-    can_verify = cu.has_role(*VERIFIERS)
+    is_admin = cu.has_role("SUPER_ADMIN")
     mine, queue, portfolio = [], [], []
+    chosen = {a.measurement_id for a in db.scalars(select(KpiVerifierAssignment).where(
+        KpiVerifierAssignment.verifier_user_id == cu.id)).all()}
     member_of = set(db.scalars(select(InitiativeMember.initiative_id).where(InitiativeMember.user_id == cu.id)).all())
     for ini in db.scalars(select(Initiative).where(Initiative.deleted_at.is_(None),
                                                    Initiative.current_state_code.in_(
@@ -367,15 +419,60 @@ def impact_overview(cu: CurrentUser = Depends(get_current_user), db: Session = D
         item = {"id": ini.id, "code": ini.code, "title": ini.title, "current_state_code": ini.current_state_code,
                 "owner": (user_brief(db, ini.owner_user_id) or {}).get("full_name"), "kpis": kpis, "can_edit": own or cu.privileged}
         (mine if own else portfolio).append(item)
-        if can_verify:
-            for k in kpis:
-                for m in k["measurements"]:
-                    if m["verification_status"] == "UNVERIFIED" and m["measured_by"] != cu.id:
-                        queue.append({"measurement": m, "kpi": {"id": k["id"], "name": k["name"], "unit_code": k["unit_code"],
-                                                               "baseline_value": k["baseline_value"], "target_value": k["target_value"]},
-                                      "initiative": {"code": ini.code, "title": ini.title}})
+    # The queue holds only what the admin chose for this person; the admin sees every waiting measurement to assign it.
+    for ini in (db.scalars(select(Initiative).where(Initiative.deleted_at.is_(None))).all() if (is_admin or chosen) else []):
+        for k in db.scalars(select(Kpi).where(Kpi.entity_type == "initiative", Kpi.entity_id == ini.id)).all():
+            for m in _kpi(db, k)["measurements"]:
+                if m["verification_status"] != "UNVERIFIED" or m["measured_by"] == cu.id:
+                    continue
+                if m["id"] in chosen or is_admin:
+                    queue.append({"measurement": m, "kpi": {"id": k.id, "name": k.name, "unit_code": k.unit_code,
+                                                           "baseline_value": k.baseline_value, "target_value": k.target_value},
+                                  "initiative": {"code": ini.code, "title": ini.title},
+                                  "can_decide": m["id"] in chosen or is_admin, "can_assign": is_admin})
+    can_verify = is_admin or bool(chosen)
     return {"mine": mine, "portfolio": portfolio if (cu.sees_all or can_verify) else [], "verify_queue": queue,
-            "can_verify": can_verify}
+            "can_verify": can_verify, "can_assign": is_admin}
+
+
+@router.get("/kpi-verifications/{measurement_id}")
+def verification_detail(measurement_id: str, cu: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """What the chosen verifier sees in the judging panel: the idea, the KPI, its history and the number to check."""
+    m = db.get(KpiMeasurement, measurement_id)
+    if not m:
+        raise not_found("Measurement")
+    mine = _assigned_id(db, m.id) == cu.id
+    if not mine and not cu.has_role("SUPER_ADMIN"):
+        raise not_found("Measurement")
+    k = db.get(Kpi, m.kpi_id)
+    ini = db.get(Initiative, k.entity_id) if k.entity_type == "initiative" else None
+    data = _kpi(db, k)
+    return {"measurement": next(x for x in data["measurements"] if x["id"] == m.id),
+            "kpi": {"id": k.id, "name": k.name, "unit_code": k.unit_code, "direction": k.direction,
+                    "baseline_value": k.baseline_value, "target_value": k.target_value},
+            "history": data["measurements"],
+            "initiative": {"code": ini.code, "title": ini.title, "summary": ini.summary} if ini else {"code": "", "title": k.name},
+            "can_decide": m.verification_status == "UNVERIFIED" and m.measured_by != cu.id and (mine or cu.has_role("SUPER_ADMIN")),
+            "can_assign": cu.has_role("SUPER_ADMIN") and m.verification_status == "UNVERIFIED"}
+
+
+def my_queue_items(db: Session, user_id: str) -> list[dict]:
+    """KPI verifications chosen for this person, in the same shape as the rest of My judging."""
+    items = []
+    for a in db.scalars(select(KpiVerifierAssignment).where(KpiVerifierAssignment.verifier_user_id == user_id)).all():
+        m = db.get(KpiMeasurement, a.measurement_id)
+        k = db.get(Kpi, m.kpi_id) if m else None
+        ini = db.get(Initiative, k.entity_id) if k and k.entity_type == "initiative" else None
+        if not m or not ini:
+            continue
+        waiting = m.verification_status == "UNVERIFIED"
+        items.append({"id": m.id, "kpi": True, "status": "ASSIGNED" if waiting else "SUBMITTED", "due_at": None,
+                      "submitted_at": iso(m.verified_at), "round_type": "KPI_VERIFICATION", "round_name": "KPI verification",
+                      "blind": False, "overdue_days": 0,
+                      "entity": {"type": "initiative", "id": ini.id, "code": ini.code, "title": f"{ini.title} — {k.name}",
+                                 "context": "Impact", "context_i18n": {"en": "Impact", "bn": "প্রভাব"},
+                                 "entrant": None, "confidential": False}})
+    return items
 
 
 # ---- Results and awards --------------------------------------------------------------------------------

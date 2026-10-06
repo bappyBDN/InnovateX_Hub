@@ -9,6 +9,8 @@ import { StatusBadge } from '@/components/domain';
 import { Badge, Button, Card, Checkbox, Dialog, Field, Input, Select, Textarea } from '@/components/ui';
 import { formatDate } from '@/utils/dates';
 import { num } from '@/utils/format';
+import { useAccess } from '@/auth';
+import { AssignVerifier } from './AssignVerifier';
 
 export interface Measurement {
   id: string;
@@ -25,6 +27,7 @@ export interface Measurement {
   verifier: string | null;
   verification_note: string | null;
   verified_at: string | null;
+  assigned_verifier?: { id: string; full_name: string } | null;
 }
 
 export interface KpiItem {
@@ -77,6 +80,7 @@ function invalidateImpact(qc: ReturnType<typeof useQueryClient>, kpi: { entity_t
 export function KpiCard({ kpi, canEdit }: { kpi: KpiItem; canEdit?: boolean }) {
   const { t } = useTranslation();
   const [adding, setAdding] = useState(false);
+  const isAdmin = useAccess().hasRole('SUPER_ADMIN');
   const points = kpi.measurements.map((m) => m.verified_value ?? m.measured_value);
   const reached =
     kpi.latest_value != null && kpi.target_value != null
@@ -143,6 +147,14 @@ export function KpiCard({ kpi, canEdit }: { kpi: KpiItem; canEdit?: boolean }) {
                 )}
               </div>
               <StatusBadge status={m.verification_status} />
+              {m.verification_status === 'UNVERIFIED' && (
+                <div className="w-full space-y-2">
+                  <p className="text-xs text-ink-muted">
+                    {m.assigned_verifier ? t('kpiVerify.waitingFor', { name: m.assigned_verifier.full_name }) : t('kpiVerify.noVerifier')}
+                  </p>
+                  {isAdmin && <AssignVerifier measurementId={m.id} current={m.assigned_verifier} />}
+                </div>
+              )}
             </li>
           ))}
         </ul>

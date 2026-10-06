@@ -1,0 +1,14 @@
+{
+  "kpiVerify": {
+    "choose": "Choose who verifies this",
+    "change": "Change the verifier",
+    "pickPerson": "Choose a person",
+    "send": "Send for verification",
+    "assigned": "Sent. It now shows in that person's judging panel.",
+    "waitingFor": "Waiting for {{name}} to verify it",
+    "noVerifier": "No verifier chosen yet. The Super Admin / DMD chooses who verifies it.",
+    "checkTitle": "Check this measurement",
+    "checkHelp": "Compare the measured number with the baseline and target. Verify it, adjust it with a note, or reject it with a reason.",
+    "history": "Earlier measurements"
+  }
+}

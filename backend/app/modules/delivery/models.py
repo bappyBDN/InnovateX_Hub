@@ -83,6 +83,14 @@ class KpiMeasurement(Base, StdColumns):
     verified_at = ts()
 
 
+class KpiVerifierAssignment(Base, StdColumns):
+    """The person the admin chose to verify one KPI measurement. It then appears in that person's judging panel."""
+    __tablename__ = "kpi_verifier_assignments"
+    measurement_id = ref(False)
+    verifier_user_id = ref(False)
+    assigned_by = ref()
+
+
 class BenefitRecord(Base, StdColumns):
     __tablename__ = "benefit_records"
     entity_type = sc(60)

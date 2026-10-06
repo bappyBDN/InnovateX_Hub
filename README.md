@@ -123,6 +123,10 @@ under review, clarification requested, shortlisted, on hold, Idea Bank, prototyp
   demo/pilot decisions — on the idea page (Feedback tab), in Admin → Judges → *Judge feedback*, in each challenge's *Judge feedback* tab and
   inside the Feedback composer. Entrants still never see judge names.
 
+- **KPI verification is chosen by the admin:** when a KPI measurement is recorded, the Super Admin / DMD is told and picks the verifier
+  (Impact → To verify, or the KPI on the idea's Impact tab → *Choose who verifies this*). Nothing is assigned automatically. The chosen
+  person sees it in **My judging** (Innovation judging), checks the number and verifies, adjusts or rejects it. Others can't.
+
 ## 2c. Prototype review and pilot review
 
 - When a prototype is allowed, the candidate fills a short **prototype form**: the link and how to use it. They send it for review.
