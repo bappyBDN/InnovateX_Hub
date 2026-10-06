@@ -66,8 +66,8 @@
       "NO": "No"
     },
     "strengths": "Strengths (shared with the entrant)",
-    "improvements": "Improvements (shared with the entrant)",
-    "privateNote": "Private note (judges only)",
+    "improvements": "Suggestions for improvement (shared with the entrant)",
+    "privateNote": "Private note (judges and admin only)",
     "sharedHelp": "Your name is never shown to the entrant.",
     "saveDraft": "Save draft",
     "draftSaved": "Draft saved",

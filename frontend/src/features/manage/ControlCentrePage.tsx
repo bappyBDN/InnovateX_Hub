@@ -6,6 +6,7 @@ import { api } from '@/api/client';
 import { queryKeys } from '@/api/queryKeys';
 import { Callout, StatusBadge } from '@/components/domain';
 import { ButtonLink, ErrorState, PageHeader, PageSkeleton, Tabs, isNotFound } from '@/components/ui';
+import { ChallengeFeedbackTab } from '@/features/judging/ChallengeFeedbackTab';
 import { ChallengeJudgesTab } from '@/features/judging/ChallengeJudgesTab';
 import NotFoundPage from '@/features/misc/NotFoundPage';
 import { tr } from '@/utils/i18n';
@@ -13,7 +14,7 @@ import { OverviewTab } from './centre/OverviewTab';
 import { ActivityTab, DemoTab, EntriesTab, QaTab, ResultsTab, RoundsTab, SettingsTab } from './centre/tabs';
 import type { CentreDetail } from './centre/types';
 
-const TABS = ['overview', 'entries', 'qa', 'judges', 'rounds', 'demo', 'results', 'settings', 'activity'] as const;
+const TABS = ['overview', 'entries', 'qa', 'judges', 'feedback', 'rounds', 'demo', 'results', 'settings', 'activity'] as const;
 type TabKey = (typeof TABS)[number];
 
 export default function ControlCentrePage() {
@@ -87,6 +88,7 @@ export default function ControlCentrePage() {
           { value: 'entries', label: t('manage.centre.tab.entries'), count: detail.numbers.registered },
           { value: 'qa', label: t('manage.centre.tab.qa') },
           { value: 'judges', label: t('judging.tab'), count: detail.judges.length },
+          { value: 'feedback', label: t('judgeFeedback.tab') },
           { value: 'rounds', label: t('manage.centre.tab.rounds'), count: detail.rounds.length },
           { value: 'demo', label: t('manage.centre.tab.demo') },
           { value: 'results', label: t('manage.centre.tab.results') },
@@ -95,8 +97,9 @@ export default function ControlCentrePage() {
         ]}
       />
 
-      <div role="tabpanel" aria-label={tab === 'judges' ? t('judging.tab') : t(`manage.centre.tab.${tab}`)}>
+      <div role="tabpanel" aria-label={tab === 'judges' ? t('judging.tab') : tab === 'feedback' ? t('judgeFeedback.tab') : t(`manage.centre.tab.${tab}`)}>
         {tab === 'judges' && <ChallengeJudgesTab challengeId={detail.id} refresh={refresh} />}
+        {tab === 'feedback' && <ChallengeFeedbackTab challengeId={detail.id} />}
         {tab === 'overview' && <OverviewTab {...props} />}
         {tab === 'entries' && <EntriesTab {...props} />}
         {tab === 'qa' && <QaTab {...props} />}

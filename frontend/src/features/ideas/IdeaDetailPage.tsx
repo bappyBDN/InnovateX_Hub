@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { GatePanel } from '@/features/gates/GatePanel';
 import { IdeaJudgesDialog } from '@/features/judging/IdeaJudgesDialog';
+import { JudgeFeedbackPanel } from '@/features/judging/JudgeFeedbackPanel';
 import { toast } from 'sonner';
 import { api, ApiError, errorMessage } from '@/api/client';
 import { queryKeys } from '@/api/queryKeys';
@@ -16,7 +17,6 @@ import {
   Card,
   CardHeader,
   Checkbox,
-  DataTable,
   Dialog,
   EmptyState,
   ErrorState,
@@ -28,11 +28,13 @@ import {
   Select,
   Skeleton,
   Tabs,
+  RichText,
   Textarea,
   isNotFound,
 } from '@/components/ui';
 import { AddKpiDialog, KpiCard, type KpiItem } from '@/features/impact/KpiParts';
 import NotFoundPage from '@/features/misc/NotFoundPage';
+import { cn } from '@/utils/cn';
 import { formatDate, formatDateTime } from '@/utils/dates';
 import { money, num, statusLabel } from '@/utils/format';
 import { tr } from '@/utils/i18n';
@@ -253,12 +255,12 @@ function ClarificationBox({ item, canReply, onDone }: { item: IdeaClarification;
 }
 
 // ---- Tabs ----------------------------------------------------------------------------------------
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, children, rich }: { label: string; children: React.ReactNode; rich?: boolean }) {
   const empty = children === null || children === undefined || children === '';
   return (
     <div>
       <dt className="text-sm font-medium text-ink-muted">{label}</dt>
-      <dd className="reading whitespace-pre-wrap text-ink">{empty ? '—' : children}</dd>
+      <dd className={cn('reading text-ink', !rich && 'whitespace-pre-wrap')}>{empty ? '—' : rich && typeof children === 'string' ? <RichText value={children} /> : children}</dd>
     </div>
   );
 }
@@ -276,14 +278,14 @@ function Overview({ d }: { d: IdeaDetail }) {
       <Card className="lg:col-span-2">
         <dl className="space-y-4">
           {d.summary && <Row label={t('ideas.fields.summary')}>{d.summary}</Row>}
-          <Row label={t('ideas.fields.problem')}>{d.problem_statement}</Row>
-          <Row label={t('ideas.fields.affected')}>{d.affected_users}</Row>
-          <Row label={t('ideas.fields.currentProcess')}>{d.current_process}</Row>
-          <Row label={t('ideas.fields.solution')}>{d.proposed_solution}</Row>
-          <Row label={t('ideas.fields.technology')}>{d.technology_used}</Row>
-          <Row label={t('ideas.fields.differentiator')}>{d.differentiator}</Row>
-          <Row label={t('ideas.fields.benefit')}>{d.expected_benefit}</Row>
-          <Row label={t('ideas.fields.dependencies')}>{d.dependencies}</Row>
+          <Row rich label={t('ideas.fields.problem')}>{d.problem_statement}</Row>
+          <Row rich label={t('ideas.fields.affected')}>{d.affected_users}</Row>
+          <Row rich label={t('ideas.fields.currentProcess')}>{d.current_process}</Row>
+          <Row rich label={t('ideas.fields.solution')}>{d.proposed_solution}</Row>
+          <Row rich label={t('ideas.fields.technology')}>{d.technology_used}</Row>
+          <Row rich label={t('ideas.fields.differentiator')}>{d.differentiator}</Row>
+          <Row rich label={t('ideas.fields.benefit')}>{d.expected_benefit}</Row>
+          <Row rich label={t('ideas.fields.dependencies')}>{d.dependencies}</Row>
         </dl>
       </Card>
       <Card>
@@ -357,31 +359,11 @@ function FeedbackTab({ d }: { d: IdeaDetail }) {
           </ul>
         </Card>
       )}
-      {d.reviews && d.reviews.length > 0 && (
+      {d.reviews && (
         <Card>
-          <CardHeader title={t('ideas.staff.reviews')} subtitle={t('ideas.staff.reviewsHelp')} />
-          {(() => {
-            const scores = d.reviews.map((r) => r.weighted_score).filter((s): s is number => s != null);
-            return (
-              <p className="mt-3 rounded-panel border border-line bg-primary-soft px-4 py-3 text-sm text-ink">
-                <span className="font-medium">{t('judging.averageScore')}: </span>
-                <span className="tabular font-semibold">{scores.length ? `${num(scores.reduce((a, b) => a + b, 0) / scores.length, 1)} / 100` : '—'}</span>
-                <span className="text-ink-muted"> · {t('judging.averageHelp', { scored: scores.length, total: d.reviews.length })}</span>
-              </p>
-            );
-          })()}
-          <div className="mt-3">
-            <DataTable
-              rows={d.reviews}
-              rowKey={(r) => r.id}
-              columns={[
-                { key: 'reviewer', header: t('ideas.staff.reviewer'), render: (r) => r.reviewer },
-                { key: 'status', header: t('ideas.staff.status'), render: (r) => <StatusBadge status={r.status} /> },
-                { key: 'due', header: t('ideas.staff.due'), render: (r) => formatDate(r.due_at) },
-                { key: 'score', header: t('ideas.detail.score'), align: 'right', render: (r) => (r.weighted_score != null ? num(r.weighted_score, 1) : '—') },
-                { key: 'rec', header: t('ideas.staff.recommendation'), render: (r) => (r.recommendation ? statusLabel(r.recommendation) : '—'), hideOnMobile: true },
-              ]}
-            />
+          <CardHeader title={t('judgeFeedback.title')} subtitle={t('judgeFeedback.help')} />
+          <div className="mt-4">
+            <JudgeFeedbackPanel entityType="initiative" entityId={d.id} />
           </div>
         </Card>
       )}

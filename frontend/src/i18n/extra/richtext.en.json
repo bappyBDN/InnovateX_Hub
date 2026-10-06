@@ -1,0 +1,21 @@
+{
+  "richText": {
+    "toolbar": "Text formatting",
+    "bold": "Bold",
+    "italic": "Italic",
+    "bullets": "Bulleted list",
+    "numbers": "Numbered list",
+    "link": "Add link",
+    "linkAddress": "Link address",
+    "linkText": "Link text",
+    "linkTextPlaceholder": "Text to show (optional)",
+    "addLink": "Add link",
+    "boldSample": "bold text",
+    "italicSample": "italic text",
+    "mode": "Editor view",
+    "write": "Write",
+    "preview": "Preview",
+    "nothingToPreview": "Nothing to preview yet.",
+    "tip": "Select text and use the buttons, or press Ctrl+B for bold, Ctrl+K for a link. Start a line with \"- \" or \"1. \" for a list."
+  }
+}

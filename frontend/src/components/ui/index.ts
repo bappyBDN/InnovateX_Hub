@@ -40,3 +40,4 @@ export {
   type StatProps,
 } from './Layout';
 export { DataTable, type Column, type DataTableProps } from './DataTable';
+export { RichText, RichTextEditor, plainText, isRichEmpty, type RichTextEditorProps } from './RichText';

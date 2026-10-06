@@ -110,6 +110,19 @@ under review, clarification requested, shortlisted, on hold, Idea Bank, prototyp
 - A person who takes part in a challenge can't be a judge of that same challenge.
 - Publishing a challenge no longer waits for judges; they can be added at any time.
 
+## 2c-0. Rich text, demo → pilot flow, judge feedback (latest)
+
+- **Rich text:** methodology answers (long text), every long field of the idea form, the demo/pilot forms and judge comments have a toolbar:
+  **bold**, *italic*, bullet and numbered lists, clickable links (Ctrl+B / Ctrl+I / Ctrl+K, Write/Preview tabs). Stored as a small
+  Markdown subset in the same text fields and rendered safely (no HTML is ever injected); old plain text still displays.
+- **Shortlisted → demo form:** a shortlisted entry or idea gets the **Demo link + How to use it** form. After the candidate submits it
+  waits as *Submitted*; the **Super Admin / DMD chooses the judges and presses Send to judges** (judges see it only then).
+  Judges approve / send back / reject with feedback. **Approved → eligible for the pilot**, and the pilot form opens (ideas and entries);
+  it is submitted and reviewed the same way. Everything else is unchanged.
+- **Judge feedback for staff:** every judge's score, recommendation, comment per criterion, strengths, suggestions and private note, plus
+  demo/pilot decisions — on the idea page (Feedback tab), in Admin → Judges → *Judge feedback*, in each challenge's *Judge feedback* tab and
+  inside the Feedback composer. Entrants still never see judge names.
+
 ## 2c. Prototype review and pilot review
 
 - When a prototype is allowed, the candidate fills a short **prototype form**: the link and how to use it. They send it for review.

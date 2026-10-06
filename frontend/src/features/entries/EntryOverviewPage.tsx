@@ -254,6 +254,11 @@ export default function EntryOverviewPage() {
                     {t('entries.demoSlot')}
                   </ButtonLink>
                 )}
+                {['FINALIST', 'FINAL_SUBMITTED'].includes(e.status_code) && (
+                  <ButtonLink to={`/entries/${e.id}/prototype`} size="sm" variant="secondary">
+                    {t('entries.pilotForm')}
+                  </ButtonLink>
+                )}
               </div>
             )}
           </Card>

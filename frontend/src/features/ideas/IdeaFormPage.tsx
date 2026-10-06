@@ -20,9 +20,11 @@ import {
   PageHeader,
   PageSkeleton,
   ProgressBar,
+  RichText,
+  RichTextEditor,
+  Textarea,
   Select,
   Switch,
-  Textarea,
   isNotFound,
 } from '@/components/ui';
 import NotFoundPage from '@/features/misc/NotFoundPage';
@@ -433,29 +435,29 @@ export default function IdeaFormPage() {
     // 2 — Problem
     <div className="space-y-5" key="problem">
       <Field label={t('ideas.fields.problem')} required error={err('problem_statement')} help={t('ideas.fields.problemHelp')} hint={counter(form.problem_statement, 3000)}>
-        <Textarea rows={5} maxLength={3000} value={form.problem_statement ?? ''} onChange={(e) => set('problem_statement', e.target.value)} onBlur={() => check('problem_statement')} />
+        <RichTextEditor rows={5} maxLength={3000} value={form.problem_statement ?? ''} onChange={(v) => set('problem_statement', v)} onBlur={() => check('problem_statement')} />
       </Field>
       <Field label={t('ideas.fields.affected')} help={t('ideas.fields.affectedHelp')}>
-        <Textarea rows={2} value={form.affected_users ?? ''} onChange={(e) => set('affected_users', e.target.value)} />
+        <RichTextEditor rows={2} value={form.affected_users ?? ''} onChange={(v) => set('affected_users', v)} />
       </Field>
       <Field label={t('ideas.fields.currentProcess')} required error={err('current_process')} help={t('ideas.fields.currentProcessHelp')} hint={counter(form.current_process, 3000)}>
-        <Textarea rows={4} maxLength={3000} value={form.current_process ?? ''} onChange={(e) => set('current_process', e.target.value)} onBlur={() => check('current_process')} />
+        <RichTextEditor rows={4} maxLength={3000} value={form.current_process ?? ''} onChange={(v) => set('current_process', v)} onBlur={() => check('current_process')} />
       </Field>
     </div>,
 
     // 3 — Proposed innovation
     <div className="space-y-5" key="solution">
       <Field label={t('ideas.fields.solution')} required error={err('proposed_solution')} help={t('ideas.fields.solutionHelp')} hint={counter(form.proposed_solution, 3000)}>
-        <Textarea rows={5} maxLength={3000} value={form.proposed_solution ?? ''} onChange={(e) => set('proposed_solution', e.target.value)} onBlur={() => check('proposed_solution')} />
+        <RichTextEditor rows={5} maxLength={3000} value={form.proposed_solution ?? ''} onChange={(v) => set('proposed_solution', v)} onBlur={() => check('proposed_solution')} />
       </Field>
       <Field label={t('ideas.fields.summary')} help={t('ideas.fields.summaryHelp')} hint={counter(form.summary, 280)}>
         <Textarea rows={2} maxLength={280} value={form.summary ?? ''} onChange={(e) => set('summary', e.target.value)} />
       </Field>
       <Field label={t('ideas.fields.technology')} help={t('ideas.fields.technologyHelp')}>
-        <Textarea rows={2} value={form.technology_used ?? ''} onChange={(e) => set('technology_used', e.target.value)} />
+        <RichTextEditor rows={2} value={form.technology_used ?? ''} onChange={(v) => set('technology_used', v)} />
       </Field>
       <Field label={t('ideas.fields.differentiator')} help={t('ideas.fields.differentiatorHelp')}>
-        <Textarea rows={3} value={form.differentiator ?? ''} onChange={(e) => set('differentiator', e.target.value)} />
+        <RichTextEditor rows={3} value={form.differentiator ?? ''} onChange={(v) => set('differentiator', v)} />
       </Field>
     </div>,
 
@@ -481,7 +483,7 @@ export default function IdeaFormPage() {
         </div>
       </fieldset>
       <Field label={t('ideas.fields.benefit')} required error={err('expected_benefit')} help={t('ideas.fields.benefitHelp')} hint={counter(form.expected_benefit, 2000)}>
-        <Textarea rows={4} maxLength={2000} value={form.expected_benefit ?? ''} onChange={(e) => set('expected_benefit', e.target.value)} onBlur={() => check('expected_benefit')} />
+        <RichTextEditor rows={4} maxLength={2000} value={form.expected_benefit ?? ''} onChange={(v) => set('expected_benefit', v)} onBlur={() => check('expected_benefit')} />
       </Field>
       <Field label={t('ideas.fields.scalability')} required error={err('scalability_level_code')} help={t('ideas.fields.scalabilityHelp')}>
         <Select value={form.scalability_level_code ?? ''} options={lookup('SCALABILITY_LEVEL')} placeholder={t('ideas.form.choose')} onChange={(e) => set('scalability_level_code', e.target.value || null)} onBlur={() => check('scalability_level_code')} />
@@ -586,7 +588,7 @@ export default function IdeaFormPage() {
         </Field>
       </div>
       <Field label={t('ideas.fields.dependencies')} help={t('ideas.fields.dependenciesHelp')}>
-        <Textarea rows={2} value={form.dependencies ?? ''} onChange={(e) => set('dependencies', e.target.value)} />
+        <RichTextEditor rows={2} value={form.dependencies ?? ''} onChange={(v) => set('dependencies', v)} />
       </Field>
     </div>,
 
@@ -748,7 +750,7 @@ export default function IdeaFormPage() {
           ).map(([k, v]) => (
             <div key={k}>
               <dt className="text-sm font-medium text-ink-muted">{t(`ideas.fields.${k}`)}</dt>
-              <dd className="reading whitespace-pre-wrap text-ink">{v && v.trim() ? v : <span className="text-ink-muted">{t('ideas.form.notFilled')}</span>}</dd>
+              <dd className="reading text-ink">{v && v.trim() ? <RichText value={v} /> : <span className="text-ink-muted">{t('ideas.form.notFilled')}</span>}</dd>
             </div>
           ))}
         </dl>

@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, Send } from 'lucide-react';
+import { ExternalLink, Send, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { api, ApiError, errorMessage } from '@/api/client';
 import { Callout } from '@/components/domain';
-import { Badge, Button, Card, CardHeader, ErrorState, Field, Input, Select, Skeleton, Textarea } from '@/components/ui';
+import { Badge, Button, Card, CardHeader, ErrorState, Field, Input, RichText, RichTextEditor, Select, Skeleton } from '@/components/ui';
 import { QuickAddJudge } from '@/features/judging/QuickAdd';
 import type { AddJudgesResult } from '@/features/judging/types';
 import { formatDateTime } from '@/utils/dates';
@@ -13,8 +13,8 @@ import { DECISIONS, DECISION_TONE, GATE_TONE, type GateDecision, type GateField,
 
 export const gateKey = (entityType: string, entityId: string) => ['gates', entityType, entityId] as const;
 
-/** The answers of a form, read only. Links open in a new tab. */
-export function GateAnswers({ fields, content }: { fields: GateField[]; content: Record<string, string> }) {
+/** The answers of a form, read only. Links open in a new tab; long answers keep their bold, lists and links. */
+export function GateAnswers({ fields, content, stage }: { fields: GateField[]; content: Record<string, string>; stage: string }) {
   const { t } = useTranslation();
   return (
     <dl className="space-y-3 text-sm">
@@ -22,15 +22,15 @@ export function GateAnswers({ fields, content }: { fields: GateField[]; content:
         .filter((f) => content[f.key])
         .map((f) => (
           <div key={f.key}>
-            <dt className="font-medium text-ink-muted">{t(`gates.field.${f.key}`, f.label)}</dt>
-            <dd className="mt-0.5 whitespace-pre-wrap break-words text-ink">
+            <dt className="font-medium text-ink-muted">{t(`gates.fieldLabel.${stage}.${f.key}`, f.label)}</dt>
+            <dd className="mt-0.5 break-words text-ink">
               {f.kind === 'URL' ? (
                 <a href={content[f.key]} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-primary underline">
                   {content[f.key]}
                   <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                 </a>
               ) : (
-                content[f.key]
+                <RichText value={content[f.key]} />
               )}
             </dd>
           </div>
@@ -60,7 +60,7 @@ function FeedbackList({ gate }: { gate: GateView }) {
       <p className="text-sm font-medium text-ink">{t('gates.feedbackTitle')}</p>
       {gate.decision_note && (
         <Callout tone="info" title={t('gates.adminDecision')}>
-          {gate.decision_note}
+          <RichText value={gate.decision_note} />
         </Callout>
       )}
       <ul className="space-y-2">
@@ -70,7 +70,7 @@ function FeedbackList({ gate }: { gate: GateView }) {
               <Badge tone={DECISION_TONE[f.decision!]}>{t(`gates.decision.${f.decision}`)}</Badge>
               <span className="text-ink-muted">{f.judge ? f.judge.full_name : t('gates.aJudge', { n: i + 1 })}</span>
             </span>
-            {f.feedback && <p className="mt-1 whitespace-pre-wrap text-ink">{f.feedback}</p>}
+            {f.feedback && <RichText className="mt-1" value={f.feedback} />}
           </li>
         ))}
       </ul>
@@ -91,7 +91,7 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
     mutationFn: (submit: boolean) => api.put<{ status: string }>(`/gates/${entityType}/${entityId}/${stage.stage}`, { content: values, submit }),
     onSuccess: async (res) => {
       setErrors({});
-      toast.success(res.status === 'IN_REVIEW' ? t('gates.sent') : t('gates.draftSaved'));
+      toast.success(res.status === 'SUBMITTED' ? t('gates.sent') : t('gates.draftSaved'));
       await reload();
     },
     onError: (e) => {
@@ -99,6 +99,22 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
       setErrors(fields ?? {});
       toast.error(errorMessage(e));
     },
+  });
+  const addSuggested = useMutation({
+    mutationFn: () => api.post<AddJudgesResult>(`/gates/${gate!.id}/judges`, { user_ids: (stage.suggested_judges ?? []).map((j) => j.id) }),
+    onSuccess: async () => {
+      toast.success(t('judging.added', { count: stage.suggested_judges?.length ?? 0 }));
+      await reload();
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  const sendForReview = useMutation({
+    mutationFn: () => api.post(`/gates/${gate!.id}/send-for-review`, { user_ids: [] }),
+    onSuccess: async () => {
+      toast.success(t('gates.sentToJudges'));
+      await reload();
+    },
+    onError: (e) => toast.error(errorMessage(e)),
   });
   const removeJudge = useMutation({
     mutationFn: (userId: string) => api.del(`/gates/${gate!.id}/judges/${userId}`),
@@ -137,6 +153,8 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
       />
       <div className="mt-4 space-y-4">
         {status === 'CHANGES_REQUESTED' && <Callout tone="warning" title={t('gates.changesTitle')}>{stage.can_edit ? t('gates.changesBody') : null}</Callout>}
+        {stage.stage === 'PILOT' && stage.can_edit && (!gate || gate.status === 'DRAFT') && <Callout tone="success" title={t('gates.eligibleTitle')}>{t('gates.eligibleBody')}</Callout>}
+        {status === 'SUBMITTED' && !canManage && <Callout tone="info" title={t('gates.submittedTitle')}>{t('gates.submittedBody')}</Callout>}
         {status === 'APPROVED' && <Callout tone="success" title={t(`gates.approved.${stage.stage}`)} />}
         {status === 'REJECTED' && <Callout tone="danger" title={t('gates.rejectedTitle')} />}
         {gate && gate.status !== 'DRAFT' && <FeedbackList gate={gate} />}
@@ -150,11 +168,11 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
             }}
           >
             {stage.fields.map((f) => (
-              <Field key={f.key} label={t(`gates.field.${f.key}`, f.label)} required={f.required} error={errors[f.key]} help={t(`gates.fieldHelp.${stage.stage}.${f.key}`, '')}>
+              <Field key={f.key} label={t(`gates.fieldLabel.${stage.stage}.${f.key}`, f.label)} required={f.required} error={errors[f.key]} help={t(`gates.fieldHelp.${stage.stage}.${f.key}`, '')}>
                 {f.kind === 'URL' ? (
                   <Input type="url" placeholder="https://" value={values[f.key] ?? ''} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))} />
                 ) : (
-                  <Textarea rows={4} maxLength={4000} value={values[f.key] ?? ''} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))} />
+                  <RichTextEditor rows={6} maxLength={4000} value={values[f.key] ?? ''} onChange={(v) => setValues((all) => ({ ...all, [f.key]: v }))} />
                 )}
               </Field>
             ))}
@@ -170,7 +188,7 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
           </form>
         ) : gate && gate.status !== 'DRAFT' ? (
           <>
-            <GateAnswers fields={stage.fields} content={gate.content} />
+            <GateAnswers fields={stage.fields} content={gate.content} stage={stage.stage} />
             <p className="text-sm text-ink-muted">{t('gates.sentOn', { date: formatDateTime(gate.submitted_at) })}</p>
             {gate.status === 'IN_REVIEW' && <Tally gate={gate} />}
           </>
@@ -180,8 +198,18 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
 
         {canManage && gate && gate.status !== 'DRAFT' && (
           <div className="space-y-4 rounded-panel border border-line bg-canvas p-4">
-            <p className="font-medium text-ink">{t('gates.adminTitle')}</p>
-            {gate.status === 'IN_REVIEW' && (
+            <p className="font-medium text-ink">{status === 'SUBMITTED' ? t('gates.chooseTitle') : t('gates.adminTitle')}</p>
+            {status === 'SUBMITTED' && <p className="text-sm text-ink-muted">{t('gates.chooseHelp')}</p>}
+            {status === 'SUBMITTED' && (stage.suggested_judges ?? []).length > 0 && (
+              <div className="space-y-2 rounded-panel border border-line bg-surface p-3">
+                <p className="text-sm font-medium text-ink">{t('gates.suggested')}</p>
+                <p className="text-sm text-ink-muted">{(stage.suggested_judges ?? []).map((j) => j.full_name).join(', ')}</p>
+                <Button size="sm" variant="secondary" icon={<UserPlus className="h-4 w-4" aria-hidden />} loading={addSuggested.isPending} onClick={() => addSuggested.mutate()}>
+                  {t('gates.addSuggested')}
+                </Button>
+              </div>
+            )}
+            {(gate.status === 'IN_REVIEW' || gate.status === 'SUBMITTED') && (
               <QuickAddJudge
                 excludeIds={(stage.judges ?? []).map((j) => j.user?.id ?? '')}
                 submit={(payload) => api.post<AddJudgesResult>(`/gates/${gate.id}/judges`, { user_ids: payload.user_ids })}
@@ -198,7 +226,7 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
                         <span className="font-medium text-ink">{j.user.full_name}</span>
                         <span className="flex items-center gap-2">
                           {j.decision ? <Badge tone={DECISION_TONE[j.decision]}>{t(`gates.decision.${j.decision}`)}</Badge> : <Badge>{t('gates.waiting')}</Badge>}
-                          {gate.status === 'IN_REVIEW' && !j.decision && (
+                          {(gate.status === 'IN_REVIEW' || gate.status === 'SUBMITTED') && !j.decision && (
                             <Button variant="ghost" size="sm" loading={removeJudge.isPending && removeJudge.variables === j.user.id} onClick={() => removeJudge.mutate(j.user!.id)}>
                               {t('common.remove')}
                             </Button>
@@ -209,6 +237,20 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
                 )}
               </ul>
             )}
+            {status === 'SUBMITTED' && (
+              <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
+                <Button
+                  icon={<Send className="h-4 w-4" aria-hidden />}
+                  disabled={(stage.judges ?? []).length === 0}
+                  disabledReason={t('gates.needJudge')}
+                  loading={sendForReview.isPending}
+                  onClick={() => sendForReview.mutate()}
+                >
+                  {t('gates.sendToJudges')}
+                </Button>
+                {(stage.judges ?? []).length === 0 && <span className="text-sm text-ink-muted">{t('gates.needJudge')}</span>}
+              </div>
+            )}
             {gate.status === 'IN_REVIEW' && (
               <div className="space-y-3 border-t border-line pt-4">
                 <p className="text-sm font-medium text-ink">{t('gates.finalCall')}</p>
@@ -218,7 +260,7 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
                     <Select value={decision} onChange={(e) => setDecision(e.target.value as GateDecision | '')} placeholder={t('gates.chooseDecision')} options={DECISIONS.map((d) => ({ value: d, label: t(`gates.decision.${d}`) }))} />
                   </Field>
                   <Field label={t('gates.reason')} required>
-                    <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+                    <RichTextEditor compact rows={3} value={note} onChange={setNote} />
                   </Field>
                 </div>
                 <Button variant="secondary" disabled={!decision || note.trim().length < 10} disabledReason={t('gates.reasonNeeded')} loading={decide.isPending} onClick={() => decide.mutate()}>
@@ -239,7 +281,7 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
                     <Badge>{t('gates.round', { n: g.round_no })}</Badge>
                     <Badge tone={GATE_TONE[g.status]}>{t(`gates.status.${g.status}`)}</Badge>
                   </span>
-                  <GateAnswers fields={stage.fields} content={g.content} />
+                  <GateAnswers fields={stage.fields} content={g.content} stage={stage.stage} />
                   <FeedbackList gate={g} />
                 </div>
               ))}

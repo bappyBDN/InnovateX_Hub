@@ -17,7 +17,7 @@ from app.modules.evaluation.models import (ConflictOfInterestDeclaration, Feedba
                                            Scorecard, ScorecardCriterion, Shortlist, ShortlistEntry, ShortlistRule)
 from app.modules.identity.models import User
 from app.modules.initiatives.models import Initiative, InitiativeMember
-from app.shared.models.base import utcnow
+from app.shared.models.base import iso, utcnow
 from app.shared.util import en
 
 
@@ -394,10 +394,11 @@ DECISION_STATUS = {
     "PROTOTYPE": {"IN": "FINALIST", "WAITLIST": "NOT_SELECTED", "OUT": "NOT_SELECTED"},
 }
 NEXT_STEPS = {
-    "SHORTLISTED": "Open your build plan, add milestones and start building. Resources for shortlisted entries are now unlocked.",
+    "SHORTLISTED": "Open your build plan, add milestones and start building. Resources for shortlisted entries are now unlocked. "
+                   "If a demo is asked for, share your demo link and how to use it on the Prototype page.",
     "WAITLISTED": "You're on the waitlist. If a shortlisted entry withdraws, we'll tell you straight away.",
     "NOT_SHORTLISTED": "Thank you for taking part. You can still submit this as an open idea any time.",
-    "FINALIST": "Book your demo slot and submit your final project before the deadline.",
+    "FINALIST": "Book your demo slot and submit your final project before the deadline. You are also eligible for the pilot: open the pilot form on the Prototype page.",
     "NOT_SELECTED": "Thank you for building a prototype. Your work stays on record and can continue as an open idea.",
 }
 
@@ -465,3 +466,70 @@ def team_shares(db: Session, entry: ChallengeEntry) -> dict[str, float]:
         return {entry.lead_user_id: 100.0}
     members = db.scalars(select(TeamMember).where(TeamMember.team_id == entry.team_id, TeamMember.status == "ACTIVE")).all()
     return {m.user_id: m.credit_share_pct or round(100 / len(members), 2) for m in members}
+
+
+def judge_feedback(db: Session, entity_type: str, entity_id: str) -> dict:
+    """Everything the judges said about one idea or entry, with names — for staff only.
+
+    Per scoring round: each judge's score, recommendation, per-criterion rating and comment, strengths, suggestions
+    (improvements) and private note. Plus the demo / pilot review decisions with the feedback each judge wrote.
+    """
+    from app.modules.evaluation.gates import STAGE_TITLE, rounds as gate_rounds, votes_of
+    from app.shared.util import user_brief
+
+    assignments = list(db.scalars(select(ReviewAssignment).where(
+        ReviewAssignment.entity_type == entity_type, ReviewAssignment.entity_id == entity_id,
+        ReviewAssignment.status != "DECLINED_COI").order_by(ReviewAssignment.created_at)).all())
+    by_round: dict[str, list[ReviewAssignment]] = {}
+    for a in assignments:
+        by_round.setdefault(a.review_round_id, []).append(a)
+    out_rounds, all_scores, recs = [], [], {}
+    for round_id, items in by_round.items():
+        rnd = db.get(ReviewRound, round_id)
+        if not rnd:
+            continue
+        criteria = criteria_of(db, rnd.scorecard_id)
+        top = max_rating(db, rnd.scorecard_id)
+        reviews, scores = [], []
+        for a in items:
+            summary = db.scalar(select(ReviewSummary).where(ReviewSummary.review_assignment_id == a.id))
+            done = a.status == "SUBMITTED"
+            ratings = ratings_of(db, a.id) if done else {}
+            score = summary.weighted_score if summary and done else None
+            if score is not None:
+                scores.append(score)
+                all_scores.append(score)
+            if done and summary and summary.recommendation:
+                recs[summary.recommendation] = recs.get(summary.recommendation, 0) + 1
+            reviews.append({
+                "id": a.id, "judge": user_brief(db, a.reviewer_user_id), "status": a.status,
+                "submitted_at": iso(a.submitted_at), "weighted_score": score,
+                "recommendation": summary.recommendation if summary and done else None,
+                "strengths": summary.strengths if summary and done else None,
+                "improvements": summary.improvements if summary and done else None,
+                "private_note": summary.private_note if summary and done else None,
+                "criteria": [{"code": c.code, "name": en(c.name_i18n), "weight_pct": c.weight_pct,
+                              "rating": ratings[c.id].rating if c.id in ratings else None,
+                              "comment": ratings[c.id].comment if c.id in ratings else None} for c in criteria] if done else [],
+            })
+        out_rounds.append({"round_id": rnd.id, "name": en(rnd.name_i18n), "round_type": rnd.round_type, "status": rnd.status,
+                           "scale_max": top, "reviews": reviews,
+                           "average_score": round(sum(scores) / len(scores), 1) if scores else None,
+                           "reviews_done": len(scores), "reviews_total": len(items)})
+    out_rounds.sort(key=lambda r: ["IDEA_REVIEW", "METHODOLOGY", "PROTOTYPE", "FINAL_JURY"].index(r["round_type"])
+                    if r["round_type"] in ("IDEA_REVIEW", "METHODOLOGY", "PROTOTYPE", "FINAL_JURY") else 9)
+
+    gate_out = []
+    for stage in ("PROTOTYPE", "PILOT"):
+        for g in reversed(gate_rounds(db, entity_type, entity_id, stage)):
+            if g.status == "DRAFT":
+                continue
+            gate_out.append({
+                "id": g.id, "stage": stage, "title": STAGE_TITLE[stage], "round_no": g.round_no, "status": g.status,
+                "submitted_at": iso(g.submitted_at), "decided_at": iso(g.decided_at), "decision_note": g.decision_note,
+                "decided_by_admin": bool(g.decided_by),
+                "judges": [{"judge": user_brief(db, v.judge_user_id), "decision": v.decision, "feedback": v.feedback,
+                            "decided_at": iso(v.decided_at)} for v in votes_of(db, g)]})
+    return {"entity_type": entity_type, "entity_id": entity_id, "rounds": out_rounds, "gates": gate_out,
+            "summary": {"average_score": round(sum(all_scores) / len(all_scores), 1) if all_scores else None,
+                        "reviews_done": len(all_scores), "reviews_total": len(assignments), "recommendations": recs}}

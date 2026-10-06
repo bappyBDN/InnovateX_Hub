@@ -1,6 +1,6 @@
 import type { Tone } from '@/components/ui';
 
-export type GateStatus = 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'CHANGES_REQUESTED' | 'REJECTED';
+export type GateStatus = 'DRAFT' | 'SUBMITTED' | 'IN_REVIEW' | 'APPROVED' | 'CHANGES_REQUESTED' | 'REJECTED';
 export type GateDecision = 'APPROVE' | 'REVISE' | 'REJECT';
 
 export interface GateField {
@@ -50,6 +50,8 @@ export interface GateStage {
   earlier: GateView[];
   /** Admin only. */
   judges?: { user: { id: string; full_name: string; job_title?: string | null } | null; decision: GateDecision | null }[];
+  /** Admin only, while the form waits for judges: people who judged this work before. */
+  suggested_judges?: { id: string; full_name: string; job_title?: string | null }[];
 }
 
 export interface GateOverview {
@@ -88,6 +90,7 @@ export interface GateRow {
 
 export const GATE_TONE: Record<GateStatus, Tone> = {
   DRAFT: 'neutral',
+  SUBMITTED: 'warning',
   IN_REVIEW: 'info',
   APPROVED: 'success',
   CHANGES_REQUESTED: 'warning',

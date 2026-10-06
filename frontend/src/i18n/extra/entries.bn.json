@@ -182,6 +182,7 @@
     "appealReasonError": "প্রক্রিয়াগত সমস্যাটি অন্তত ২০ অক্ষরে ব্যাখ্যা করুন।",
     "appealRaised": "আপিল করা হয়েছে",
     "appealStatus": "আপিল: {{status}}",
-    "appealDecision": "সিদ্ধান্ত"
+    "appealDecision": "সিদ্ধান্ত",
+    "pilotForm": "ডেমো ও পাইলট ফর্ম"
   }
 }

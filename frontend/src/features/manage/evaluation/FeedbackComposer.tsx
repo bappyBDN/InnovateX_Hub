@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, CircleAlert } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, CircleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { api, errorMessage } from '@/api/client';
 import { queryKeys } from '@/api/queryKeys';
 import { Callout, StatusBadge } from '@/components/domain';
-import { Badge, Button, Card, Checkbox, EmptyState, ErrorState, Field, Skeleton, Textarea } from '@/components/ui';
+import { Badge, Button, Card, Checkbox, EmptyState, ErrorState, Field, RichTextEditor, Skeleton } from '@/components/ui';
+import { JudgeFeedbackPanel } from '@/features/judging/JudgeFeedbackPanel';
 import { formatDateTime } from '@/utils/dates';
 import { num } from '@/utils/format';
 import type { FeedbackComposerData, FeedbackDraft } from './types';
@@ -31,6 +32,7 @@ function DraftCard({
     next_steps: draft.next_steps ?? '',
   };
   const [form, setForm] = useState(initial);
+  const [showJudges, setShowJudges] = useState(false);
   useEffect(() => {
     setForm(initial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -52,7 +54,7 @@ function DraftCard({
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
-  const set = (k: keyof typeof initial) => (e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k: keyof typeof initial) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
   const fields: [keyof typeof initial, string, boolean][] = [
     ['strengths', t('shortlist.strengths'), true],
     ['improvements', t('shortlist.improvements'), true],
@@ -86,9 +88,25 @@ function DraftCard({
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         {fields.map(([key, label, required]) => (
           <Field key={key} label={label} required={required}>
-            <Textarea rows={4} value={form[key]} onChange={set(key)} readOnly={!canManage} />
+            <RichTextEditor rows={4} value={form[key]} onChange={set(key)} readOnly={!canManage} />
           </Field>
         ))}
+      </div>
+      <div className="mt-4 border-t border-line pt-3">
+        <Button
+          size="sm"
+          variant="secondary"
+          aria-expanded={showJudges}
+          icon={showJudges ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
+          onClick={() => setShowJudges((v) => !v)}
+        >
+          {showJudges ? t('judgeFeedback.hideFeedback') : t('judgeFeedback.viewFeedback')}
+        </Button>
+        {showJudges && (
+          <div className="mt-4">
+            <JudgeFeedbackPanel entityType="challenge_entry" entityId={draft.entry.id} />
+          </div>
+        )}
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-ink-muted">

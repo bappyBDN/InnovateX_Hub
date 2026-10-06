@@ -720,3 +720,37 @@ def decide_appeal(appeal_id: str, body: AppealDecisionIn, request: Request, cu: 
                   link=f"/entries/{ap.entity_id}/feedback")
     db.commit()
     return {"status": ap.status}
+
+
+@router.get("/judge-feedback/{entity_type}/{entity_id}")
+def judge_feedback(entity_type: str, entity_id: str, cu: CurrentUser = Depends(require_roles(*OVERSEERS)),
+                   db: Session = Depends(get_db)):
+    """Staff view: every judge's score, recommendation, comments, suggestions and note for an idea or an entry."""
+    if entity_type == "challenge_entry":
+        get_entry_or_404(db, cu, entity_id)
+    elif entity_type == "initiative":
+        ini, _ = get_initiative_or_404(db, cu, entity_id)
+        entity_id = ini.id
+    else:
+        raise not_found("Page")
+    return svc.judge_feedback(db, entity_type, entity_id)
+
+
+@router.get("/challenges/{challenge_id}/judge-feedback")
+def challenge_judge_feedback(challenge_id: str, cu: CurrentUser = Depends(require_roles(*OVERSEERS)), db: Session = Depends(get_db)):
+    """Challenge-wise view for staff: every entry the judges have scored or reviewed, with its average score."""
+    ch = db.get(Challenge, challenge_id)
+    if not ch:
+        raise not_found("Challenge")
+    rows = []
+    for entry in db.scalars(select(ChallengeEntry).where(ChallengeEntry.challenge_id == ch.id, ChallengeEntry.deleted_at.is_(None))
+                            .order_by(ChallengeEntry.code)).all():
+        fb = svc.judge_feedback(db, "challenge_entry", entry.id)
+        if not fb["rounds"] and not fb["gates"]:
+            continue
+        team = db.get(Team, entry.team_id) if entry.team_id else None
+        rows.append({"entry": {"id": entry.id, "code": entry.code, "title": entry.title, "status_code": entry.status_code,
+                               "entrant": team.name if team else (user_brief(db, entry.lead_user_id) or {}).get("full_name")},
+                     "summary": fb["summary"],
+                     "gates": [{"stage": g["stage"], "round_no": g["round_no"], "status": g["status"]} for g in fb["gates"]]})
+    return {"challenge": {"id": ch.id, "title_i18n": ch.title_i18n}, "items": rows}

@@ -63,8 +63,13 @@ def gate_overview(entity_type: str, entity_id: str, cu: CurrentUser = Depends(ge
         for stage in out["stages"]:
             gate = stage["gate"]
             if gate:
-                stage["judges"] = [{"user": user_brief(db, v.judge_user_id), "decision": v.decision}
-                                   for v in gates.votes_of(db, db.get(StageGate, gate["id"]))]
+                row = db.get(StageGate, gate["id"])
+                votes = gates.votes_of(db, row)
+                stage["judges"] = [{"user": user_brief(db, v.judge_user_id), "decision": v.decision} for v in votes]
+                if gate["status"] == "SUBMITTED":      # the people who judged this work before, as a starting point
+                    have = {v.judge_user_id for v in votes}
+                    stage["suggested_judges"] = [user_brief(db, u) for u in gates.default_judges(db, subject, stage["stage"])
+                                                 if u not in have and u not in subject.people()]
     return out
 
 
@@ -81,6 +86,20 @@ def save_form(entity_type: str, entity_id: str, stage: str, body: FormIn, reques
 
 
 # ---- Admin: judges and the final call -----------------------------------------------------------
+@router.post("/gates/{gate_id}/send-for-review")
+def send_for_review(gate_id: str, body: JudgesIn, request: Request, cu: CurrentUser = Depends(require_roles(*ADMIN)),
+                    db: Session = Depends(get_db)):
+    """The Super Admin / DMD chooses the judges and sends a submitted demo or pilot form to them."""
+    gate, subject = _gate(db, gate_id)
+    result = gates.send_for_review(db, cu, gate, subject, body.user_ids)
+    audit(db, cu.id, "CONFIG_CHANGE", gate.entity_type, gate.entity_id,
+          f"Sent the {gates.STAGE_TITLE[gate.stage].lower()} to the judges: "
+          f"{', '.join(j['full_name'] for j in (user_brief(db, v.judge_user_id) for v in gates.votes_of(db, gate)) if j)}", {},
+          request.state.request_id)
+    db.commit()
+    return {**result, "status": gate.status}
+
+
 @router.post("/gates/{gate_id}/judges")
 def add_judges(gate_id: str, body: JudgesIn, request: Request, cu: CurrentUser = Depends(require_roles(*ADMIN)),
                db: Session = Depends(get_db)):

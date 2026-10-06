@@ -316,6 +316,27 @@ proto = call("rahim", "GET", f"/entries/{r4['id']}/submissions/prototype")
 assert proto["can_edit"], proto["read_only_reason"]
 call("rahim", "POST", f"/entries/{r4['id']}/submissions/prototype/actions/submit",
      {"content": {"what_built": "Phone checklist working offline.", "results_so_far": "Used on 12 handovers."}})
+# Demo review of an entry: submit the demo link + how to use it, the admin chooses judges, approval makes it eligible for the pilot.
+call("rahim", "PUT", f"/gates/challenge_entry/{r4['id']}/PILOT", {"content": {"summary": "x", "results": "y"}, "submit": True}, expect=409,
+     label="the pilot form opens only after the demo is approved")
+eg = call("rahim", "PUT", f"/gates/challenge_entry/{r4['id']}/PROTOTYPE",
+          {"content": {"link": "https://demo.example.org/handover", "how_to_use": "**Open** the link, then:\n- tap Start\n- scan a tag"}, "submit": True})
+assert eg["status"] == "SUBMITTED"
+call("admin", "POST", f"/gates/{eg['id']}/send-for-review", {"user_ids": []}, expect=422, label="judges are chosen first")
+panel = [u["id"] for u in call("admin", "GET", f"/gates/challenge_entry/{r4['id']}")["stages"][0]["suggested_judges"]]
+assert panel, "the challenge judges are suggested"
+call("admin", "POST", f"/gates/{eg['id']}/send-for-review", {"user_ids": panel})
+call("admin", "POST", f"/gates/{eg['id']}/decide", {"decision": "APPROVE", "note": "Works well for the handover team."})
+assert call("rahim", "GET", f"/entries/{r4['id']}")["status_code"] == "FINALIST"
+ov = call("rahim", "GET", f"/gates/challenge_entry/{r4['id']}")
+assert [x["stage"] for x in ov["stages"]] == ["PROTOTYPE", "PILOT"] and ov["stages"][1]["can_edit"], "eligible for the pilot"
+eg2 = call("rahim", "PUT", f"/gates/challenge_entry/{r4['id']}/PILOT",
+           {"content": {"summary": "Two shifts for two weeks.", "results": "Handover misses down 40%."}, "submit": True})
+call("admin", "POST", f"/gates/{eg2['id']}/send-for-review", {"user_ids": panel})
+call("admin", "POST", f"/gates/{eg2['id']}/decide", {"decision": "APPROVE", "note": "Results are clear and measured."})
+assert call("rahim", "GET", f"/entries/{r4['id']}")["status_code"] == "FINALIST"
+jf = call("admin", "GET", f"/judge-feedback/challenge_entry/{r4['id']}")
+assert len(jf["gates"]) == 2 and jf["rounds"], "judge feedback shows scores and the demo and pilot decisions"
 omar4 = next(e for e in call("omar", "GET", "/me/entries")["items"] if e["challenge"]["id"] == C4["id"])
 call("omar", "POST", "/milestones", {"entity_id": omar4["id"], "title": "x"}, expect=409)
 assert not call("omar", "GET", f"/entries/{omar4['id']}/submissions/prototype")["can_edit"]
@@ -400,9 +421,15 @@ call("anika", "PUT", f"/gates/initiative/{code}/PROTOTYPE", {"content": {"link":
      label="link and how-to-use are checked")
 gate = call("anika", "PUT", f"/gates/initiative/{code}/PROTOTYPE",
             {"content": {"link": "https://demo.example.org/fabric", "how_to_use": "Open the link and press Start."}, "submit": True})
-assert gate["status"] == "IN_REVIEW" and call("anika", "GET", f"/initiatives/{code}")["current_state_code"] == "DEMO_VALIDATION"
-call("owner", "POST", f"/gates/{gate['id']}/judges", {"user_ids": [users["Shirin Sultana"]]}, expect=404, label="only the admin chooses review judges")
-call("admin", "POST", f"/gates/{gate['id']}/judges", {"user_ids": [users["Shirin Sultana"]]})
+assert gate["status"] == "SUBMITTED" and call("anika", "GET", f"/initiatives/{code}")["current_state_code"] == "DEMO_VALIDATION"
+assert not any(x.get("gate") and x["entity"]["code"] == code for x in call("judge1", "GET", "/me/review-queue")["items"]), "judges see it only after it is sent"
+call("owner", "POST", f"/gates/{gate['id']}/send-for-review", {"user_ids": [users["Shirin Sultana"]]}, expect=404, label="only the admin sends it for review")
+call("admin", "POST", f"/gates/{gate['id']}/send-for-review", {"user_ids": []}, expect=422, label="at least one judge is needed")
+suggested = [u["id"] for u in call("admin", "GET", f"/gates/initiative/{code}")["stages"][0]["suggested_judges"]]
+assert suggested, "the people who judged the idea before are suggested"
+sent = call("admin", "POST", f"/gates/{gate['id']}/send-for-review", {"user_ids": suggested + [users["Shirin Sultana"]]})
+assert sent["status"] == "IN_REVIEW"
+call("admin", "POST", f"/gates/{gate['id']}/send-for-review", {"user_ids": []}, expect=409, label="already sent")
 call("owner", "POST", f"/initiatives/{code}/actions/approve_pilot", {}, expect=409, label="judges decide, not a button")
 
 
@@ -420,6 +447,9 @@ assert seen["can_edit"] and all(f["judge"] is None for f in seen["gate"]["feedba
 assert call("anika", "GET", f"/initiatives/{code}")["current_state_code"] == "PROTOTYPE"
 call("anika", "PUT", f"/gates/initiative/{code}/PROTOTYPE",
      {"content": {"link": "https://demo.example.org/fabric", "how_to_use": "Guide added. Sign in as guest / guest."}, "submit": True})
+resent = call("admin", "GET", f"/gates/initiative/{code}")["stages"][0]
+assert resent["gate"]["status"] == "SUBMITTED" and resent["gate"]["round_no"] == 2, "a new round waits for the admin again"
+call("admin", "POST", f"/gates/{resent['gate']['id']}/send-for-review", {"user_ids": []})   # the same judges carry over
 decide("judge1", "APPROVE")
 assert decide("judge4", "APPROVE", "Works well.")["status"] == "APPROVED", "most judges approved"
 assert call("anika", "GET", f"/initiatives/{code}")["current_state_code"] == "PILOT"
@@ -427,6 +457,11 @@ call("owner", "POST", f"/initiatives/{code}/actions/go_live", {}, expect=409, la
 # Pilot review: a short report, the same judges, and the admin can make the final call.
 pilot = call("anika", "PUT", f"/gates/initiative/{code}/PILOT",
              {"content": {"summary": "Two cutting rooms for three weeks.", "results": "Sample fabric cost down 22%."}, "submit": True})
+assert pilot["status"] == "SUBMITTED"
+call("admin", "POST", f"/gates/{pilot['id']}/send-for-review", {"user_ids": [users["Shirin Sultana"]]})
+fb = call("admin", "GET", f"/judge-feedback/initiative/{code}")
+assert fb["gates"] and any(j["feedback"] for g in fb["gates"] for j in g["judges"]), "staff see each judge's feedback"
+call("anika", "GET", f"/judge-feedback/initiative/{code}", expect=404, label="candidates can't read judge feedback")
 call("owner", "POST", f"/gates/{pilot['id']}/decide", {"decision": "APPROVE", "note": "Results beat the target."}, expect=404)
 call("admin", "POST", f"/gates/{pilot['id']}/decide", {"decision": "APPROVE", "note": ""}, expect=422, label="final call needs a reason")
 assert call("admin", "POST", f"/gates/{pilot['id']}/decide", {"decision": "APPROVE", "note": "Results beat the target in both rooms."})["status"] == "APPROVED"

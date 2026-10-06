@@ -21,7 +21,7 @@ export default function EntryPrototypePage() {
       <PageHeader
         title={t('gates.entryTitle')}
         subtitle={`${e.code} · ${e.title}`}
-        breadcrumbs={[{ label: t('nav.myEntries'), to: '/entries' }, { label: e.code, to: `/entries/${e.id}` }, { label: t('gates.stage.PROTOTYPE') }]}
+        breadcrumbs={[{ label: t('nav.myEntries'), to: '/entries' }, { label: e.code, to: `/entries/${e.id}` }, { label: t('gates.entryTitle') }]}
         actions={
           <ButtonLink to={`/entries/${e.id}`} variant="secondary">
             {t('gates.backToEntry')}

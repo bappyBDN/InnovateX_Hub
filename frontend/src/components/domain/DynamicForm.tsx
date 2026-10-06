@@ -3,7 +3,8 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/Feedback';
-import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/Form';
+import { Checkbox, Field, Input, Select } from '@/components/ui/Form';
+import { RichText, RichTextEditor } from '@/components/ui/RichText';
 import i18n from '@/i18n';
 import { cn } from '@/utils/cn';
 import { formatDate } from '@/utils/dates';
@@ -276,7 +277,7 @@ function FieldRenderer({ field: f, value, onChange, onBlur, error, readOnly }: F
     case 'RICH_TEXT':
       return (
         <Field label={label} help={help} error={error} required={f.is_required} hint={counter}>
-          <Textarea rows={6} value={str} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} {...common} />
+          <RichTextEditor rows={7} value={str} placeholder={placeholder} onChange={onChange} {...common} />
         </Field>
       );
     case 'NUMBER':
@@ -452,7 +453,7 @@ export function DynamicFormView({ form, value, hideEmpty, className }: DynamicFo
               .map((f) => (
                 <div key={f.id}>
                   <dt className="text-sm font-medium text-ink-muted">{tr(f.label_i18n, f.field_key)}</dt>
-                  <dd className="reading mt-0.5 whitespace-pre-wrap text-ink">
+                  <dd className={cn('reading mt-0.5 text-ink', !isRich(f) && 'whitespace-pre-wrap')}>
                     {isEmpty(value?.[f.field_key]) ? (
                       <span className="text-ink-muted">{t('form.notAnswered')}</span>
                     ) : (
@@ -467,6 +468,8 @@ export function DynamicFormView({ form, value, hideEmpty, className }: DynamicFo
     </div>
   );
 }
+
+const isRich = (f: FormFieldDef) => f.field_type === 'LONG_TEXT' || f.field_type === 'RICH_TEXT';
 
 function AnswerValue({ field: f, value }: { field: FormFieldDef; value: unknown }) {
   const { t } = useTranslation();
@@ -514,6 +517,9 @@ function AnswerValue({ field: f, value }: { field: FormFieldDef; value: unknown 
           {String(value)}
         </a>
       );
+    case 'LONG_TEXT':
+    case 'RICH_TEXT':
+      return <RichText value={String(value)} />;
     default:
       return <>{String(value)}</>;
   }

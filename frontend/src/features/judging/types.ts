@@ -73,3 +73,71 @@ export interface AddJudgesResult {
   invited: { email: string; invite_url: string; email_status: string }[];
   invalid_emails: string[];
 }
+
+/** What the judges said about one idea or entry (staff only). From GET /judge-feedback/{type}/{id}. */
+export interface JudgeFeedbackCriterion {
+  code: string;
+  name: string;
+  weight_pct: number | null;
+  rating: number | null;
+  comment: string | null;
+}
+
+export interface JudgeFeedbackReview {
+  id: string;
+  judge: { id: string; full_name: string; job_title?: string | null } | null;
+  status: string;
+  submitted_at: string | null;
+  weighted_score: number | null;
+  recommendation: string | null;
+  strengths: string | null;
+  improvements: string | null;
+  private_note: string | null;
+  criteria: JudgeFeedbackCriterion[];
+}
+
+export interface JudgeFeedbackRound {
+  round_id: string;
+  name: string;
+  round_type: string;
+  status: string;
+  scale_max: number;
+  average_score: number | null;
+  reviews_done: number;
+  reviews_total: number;
+  reviews: JudgeFeedbackReview[];
+}
+
+export interface JudgeFeedbackGate {
+  id: string;
+  stage: 'PROTOTYPE' | 'PILOT';
+  title: string;
+  round_no: number;
+  status: string;
+  submitted_at: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  decided_by_admin: boolean;
+  judges: { judge: { id: string; full_name: string; job_title?: string | null } | null; decision: string | null; feedback: string | null; decided_at: string | null }[];
+}
+
+export interface JudgeFeedbackSummary {
+  average_score: number | null;
+  reviews_done: number;
+  reviews_total: number;
+  recommendations: Record<string, number>;
+}
+
+export interface JudgeFeedbackData {
+  entity_type: string;
+  entity_id: string;
+  rounds: JudgeFeedbackRound[];
+  gates: JudgeFeedbackGate[];
+  summary: JudgeFeedbackSummary;
+}
+
+export interface ChallengeJudgeFeedbackRow {
+  entry: { id: string; code: string; title: string; status_code: string; entrant: string | null };
+  summary: JudgeFeedbackSummary;
+  gates: { stage: string; round_no: number; status: string }[];
+}

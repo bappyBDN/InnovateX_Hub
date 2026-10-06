@@ -1,12 +1,12 @@
-"""Prototype review and pilot review.
+"""Demo (prototype) review and pilot review.
 
-When a prototype is allowed, the candidate fills a short form (the link and how to use it) and sends it for review.
-Judges chosen by the admin each approve it, send it back for changes, or reject it — a decision with written feedback,
-no score. Most judges decide; the admin can always make the final call. An approved prototype moves on to the pilot,
-and the pilot is reviewed the same way with a short pilot report.
+Once an idea or an entry is shortlisted, the candidate gets a short form: the demo link and how to use it. They submit it.
+The Super Admin or DMD then chooses the judges and sends it for review (until then it waits as SUBMITTED). Each judge
+approves it, sends it back for changes, or rejects it — a decision with written feedback, no score. Most judges decide;
+the admin can always make the final call. An approved demo makes the candidate eligible for the pilot, which opens a
+second form (the pilot report) that is reviewed the same way.
 
-Works for an idea (prototype and pilot) and for a challenge entry (prototype; a winning entry continues as an idea
-for its pilot).
+Works for an idea (demo and pilot) and for a challenge entry (demo and pilot).
 """
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,10 +23,10 @@ from app.modules.initiatives.models import Initiative, InitiativeMember
 from app.shared.models.base import iso, utcnow
 from app.shared.util import en, user_brief
 
-STAGE_TITLE = {"PROTOTYPE": "Prototype review", "PILOT": "Pilot review"}
+STAGE_TITLE = {"PROTOTYPE": "Demo review", "PILOT": "Pilot review"}
 # field key, label, required, kind
 FIELDS = {
-    "PROTOTYPE": [("link", "Prototype link", True, "URL"),
+    "PROTOTYPE": [("link", "Demo link", True, "URL"),
                   ("how_to_use", "How to use it", True, "TEXT"),
                   ("notes", "Anything else the judges should know", False, "TEXT")],
     "PILOT": [("summary", "What was tested in the pilot", True, "TEXT"),
@@ -77,16 +77,20 @@ class Subject:
                                                                      InitiativeMember.left_at.is_(None))))
 
     def stages(self) -> list[str]:
-        return ["PROTOTYPE", "PILOT"] if self.entity_type == "initiative" else ["PROTOTYPE"]
+        return ["PROTOTYPE", "PILOT"]
 
     def open_reason(self, stage: str) -> str | None:
         """None when the candidate may send this stage for review now; otherwise why not."""
         if self.entity_type == "initiative":
             state = self.obj.current_state_code
             if stage == "PROTOTYPE":
-                return None if state in ("PROTOTYPE", "DEMO_VALIDATION") else "Opens when a prototype is authorised for this idea."
-            return None if state == "PILOT" else "Opens when the idea is in pilot."
+                return None if state in ("SHORTLISTED", "PROTOTYPE", "DEMO_VALIDATION") else "Opens when your idea is shortlisted."
+            return None if state == "PILOT" else "Opens when your demo is approved and the idea is eligible for the pilot."
         entry, ch = self.obj, self.challenge
+        if stage == "PILOT":
+            if not approved(self.db, "challenge_entry", entry.id, "PROTOTYPE"):
+                return "Opens when your demo is approved and you are eligible for the pilot."
+            return None if entry.status_code in ("FINALIST", "FINAL_SUBMITTED", "JUDGED", "WINNER", "RUNNER_UP", "PARTICIPANT") else "The pilot is not open for this entry."
         if not (entry.prototype_required or ch.prototype_policy in ("OPTIONAL", "REQUIRED_ALL")):
             return "No prototype is needed for this entry."
         phase = csvc.phase_of(self.db, ch.id, "PROTOTYPE")
@@ -101,11 +105,13 @@ class Subject:
     def relevant(self, stage: str) -> bool:
         """Whether to show this stage at all (hide the pilot box on an idea that is nowhere near a pilot)."""
         if self.entity_type == "challenge_entry":
+            if stage == "PILOT":
+                return approved(self.db, "challenge_entry", self.id, "PROTOTYPE")
             return bool(self.obj.prototype_required or self.challenge.prototype_policy in ("OPTIONAL", "REQUIRED_ALL")) \
                 and self.obj.status_code not in ("REGISTERED", "METHODOLOGY_SUBMITTED", "UNDER_REVIEW", "WITHDRAWN", "NO_SUBMISSION")
         state = self.obj.current_state_code
-        after_prototype = ("PROTOTYPE", "DEMO_VALIDATION", "PILOT", "PRODUCTION", "IMPACT_VERIFIED", "SCALED")
-        return state in after_prototype if stage == "PROTOTYPE" else state in after_prototype[2:]
+        after_prototype = ("SHORTLISTED", "PROTOTYPE", "DEMO_VALIDATION", "PILOT", "PRODUCTION", "IMPACT_VERIFIED", "SCALED")
+        return state in after_prototype if stage == "PROTOTYPE" else state in after_prototype[3:]
 
     def set_state(self, new: str, action: str, actor_id: str | None, comment: str | None = None) -> None:
         now = utcnow()
@@ -235,24 +241,21 @@ def save(db: Session, cu: CurrentUser, subject: Subject, stage: str, content: di
             errors[key] = "Enter a full link starting with http:// or https://."
     if errors:
         raise DomainError("VALIDATION_ERROR", "Some fields need attention.", 422, {"fields": errors})
-    gate.status, gate.submitted_by, gate.submitted_at = "IN_REVIEW", cu.id, utcnow()
+    # Submitted: it now waits for the Super Admin / DMD to choose the judges and send it for review.
+    gate.status, gate.submitted_by, gate.submitted_at = "SUBMITTED", cu.id, utcnow()
     db.flush()
-    if not votes_of(db, gate):
-        add_judges(db, gate, subject, default_judges(db, subject, stage), cu.id, notify=False)
     if subject.entity_type == "initiative" and stage == "PROTOTYPE":
         subject.set_state("DEMO_VALIDATION", "PROTOTYPE_SENT_FOR_REVIEW", cu.id)
-    elif subject.entity_type == "challenge_entry":
+    elif subject.entity_type == "challenge_entry" and stage == "PROTOTYPE":
         subject.set_state("PROTOTYPE_SUBMITTED", "PROTOTYPE_SENT_FOR_REVIEW", cu.id)
-    judges = [v.judge_user_id for v in votes_of(db, gate)]
     name = STAGE_TITLE[stage]
-    if judges:
-        publish_event(db, "GATE_TO_REVIEW", subject.entity_type, subject.id, cu.id, users=judges,
-                      title=f"{name}: {subject.code}", body=f"{subject.title}. Open it under My judging and give your decision.",
-                      link="/review", needs_action=True)
     publish_event(db, "GATE_SUBMITTED", subject.entity_type, subject.id, cu.id, users=admin_ids(db),
-                  title=f"{name} sent: {subject.code}",
-                  body=f"{subject.title}. " + ("Check the judges." if judges else "No judges are chosen yet — choose them now."),
-                  link=subject.link, needs_action=not judges)
+                  title=f"{name} submitted: {subject.code}",
+                  body=f"{subject.title}. Choose the judges and send it for review.", link=subject.link, needs_action=True)
+    publish_event(db, "GATE_RECEIVED", subject.entity_type, subject.id, cu.id, users=subject.people(),
+                  title=f"{name} received: {subject.code}",
+                  body="Thank you. The innovation office will choose the judges and send it for review. You'll be told when they decide.",
+                  link=subject.link)
     db.flush()
     return gate
 
@@ -260,15 +263,15 @@ def save(db: Session, cu: CurrentUser, subject: Subject, stage: str, content: di
 # ---- Admin: judges and the final call -----------------------------------------------------------
 def default_judges(db: Session, subject: Subject, stage: str) -> list[str]:
     """Start with the people who already judged this work; the admin can change them."""
-    if subject.entity_type == "challenge_entry":
-        members = db.scalars(select(PanelMember).where(PanelMember.panel_id.in_(_panel_ids(db, subject.challenge.id)))).all()
-        return [m.user_id for m in members if not m.stages or "PROTOTYPE" in m.stages]
     if stage == "PILOT":
-        prototype = latest(db, "initiative", subject.id, "PROTOTYPE")
+        prototype = latest(db, subject.entity_type, subject.id, "PROTOTYPE")
         if prototype:
             earlier = [v.judge_user_id for v in votes_of(db, prototype)]
             if earlier:
                 return earlier
+    if subject.entity_type == "challenge_entry":
+        members = db.scalars(select(PanelMember).where(PanelMember.panel_id.in_(_panel_ids(db, subject.challenge.id)))).all()
+        return [m.user_id for m in members if not m.stages or "PROTOTYPE" in m.stages]
     return list(dict.fromkeys(db.scalars(select(ReviewAssignment.reviewer_user_id).where(
         ReviewAssignment.entity_type == "initiative", ReviewAssignment.entity_id == subject.id,
         ReviewAssignment.status != "DECLINED_COI")).all()))
@@ -300,6 +303,27 @@ def add_judges(db: Session, gate: StageGate, subject: Subject, user_ids: list[st
                       body=f"{subject.title}. Open it under My judging and give your decision.", link="/review", needs_action=True)
     return {"added": [db.get(User, u).full_name for u in added], "skipped": skipped, "created": len(added),
             "invited": [], "invalid_emails": []}
+
+
+def send_for_review(db: Session, cu: CurrentUser, gate: StageGate, subject: Subject, user_ids: list[str]) -> dict:
+    """The Super Admin / DMD picks the judges and sends the submitted form to them."""
+    if gate.status != "SUBMITTED":
+        raise DomainError("NOT_WAITING", "Only a submitted form that is waiting for judges can be sent for review.", 409)
+    result = add_judges(db, gate, subject, user_ids, cu.id, notify=False)
+    judges = [v.judge_user_id for v in votes_of(db, gate)]
+    if not judges:
+        raise DomainError("JUDGES_REQUIRED", "Choose at least one judge before sending it for review.", 422,
+                          {"fields": {"user_ids": "Choose at least one judge."}})
+    gate.status = "IN_REVIEW"
+    name = STAGE_TITLE[gate.stage]
+    publish_event(db, "GATE_TO_REVIEW", subject.entity_type, subject.id, cu.id, users=judges,
+                  title=f"{name}: {subject.code}", body=f"{subject.title}. Open it under My judging and give your decision.",
+                  link="/review", needs_action=True)
+    publish_event(db, "GATE_IN_REVIEW", subject.entity_type, subject.id, cu.id, users=subject.people(),
+                  title=f"{name} is with the judges: {subject.code}",
+                  body="The judges are looking at it now. You'll be told when they decide.", link=subject.link)
+    db.flush()
+    return result
 
 
 def remove_judge(db: Session, gate: StageGate, subject: Subject, user_id: str) -> None:
@@ -364,7 +388,7 @@ def apply(db: Session, gate: StageGate, subject: Subject, result: str, actor_id:
         if result == "APPROVED":
             subject.set_state("PILOT", action, actor_id, note)
             svc.award_points(db, people, 80, "PILOT", "PILOT_STARTED", "initiative", subject.id)
-            next_step = "Your idea moves to the pilot. Run it, then send the pilot report for review."
+            next_step = "Your demo is approved and your idea is eligible for the pilot. Open the pilot form, report what the pilot showed and send it for review."
         elif result == "CHANGES_REQUESTED":
             subject.set_state("PROTOTYPE", action, actor_id, note)
             next_step = "Read the feedback, improve the prototype and send it again."
@@ -379,11 +403,19 @@ def apply(db: Session, gate: StageGate, subject: Subject, result: str, actor_id:
         else:
             subject.set_state("CLOSED", action, actor_id, note)
             next_step = "The pilot was stopped."
-    else:                                               # challenge entry prototype
+    elif gate.stage == "PILOT":                         # challenge entry pilot: the entry keeps its place in the challenge
+        if result == "APPROVED":
+            next_step = "Your pilot is approved. Well done."
+        elif result == "CHANGES_REQUESTED":
+            next_step = "Read the feedback, update the pilot report and send it again."
+        else:
+            next_step = "The pilot was not approved. See the feedback for the reasons."
+    else:                                               # challenge entry demo
         if result == "APPROVED":
             subject.set_state("FINALIST", action, actor_id, note)
             svc.award_points(db, people, 80, "FINALIST", "FINALIST", "challenge_entry", subject.id)
-            next_step = "You are a finalist. Book your demo slot and prepare your final project."
+            next_step = ("You are a finalist and eligible for the pilot. Open the pilot form and send it for review, "
+                         "book your demo slot and prepare your final project.")
         elif result == "CHANGES_REQUESTED":
             subject.set_state("BUILDING", action, actor_id, note)
             next_step = "Read the feedback, improve the prototype and send it again before the window closes."
@@ -417,7 +449,7 @@ def my_queue_items(db: Session, user_id: str) -> list[dict]:
     items = []
     for ballot in db.scalars(select(StageGateVote).where(StageGateVote.judge_user_id == user_id)).all():
         gate = db.get(StageGate, ballot.gate_id)
-        if not gate or gate.status == "DRAFT":
+        if not gate or gate.status in ("DRAFT", "SUBMITTED"):     # judges see it once the admin has sent it for review
             continue
         try:
             subject = Subject(db, gate.entity_type, gate.entity_id)

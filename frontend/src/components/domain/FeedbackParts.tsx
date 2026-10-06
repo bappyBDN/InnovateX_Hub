@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ProgressBar } from '@/components/ui/Feedback';
 import { Card } from '@/components/ui/Layout';
+import { RichText } from '@/components/ui/RichText';
 import { cn } from '@/utils/cn';
 import { formatDateTime } from '@/utils/dates';
 import { num, statusLabel } from '@/utils/format';
@@ -86,11 +87,11 @@ export interface FeedbackCardProps {
   className?: string;
 }
 
-function Block({ title, children }: { title: string; children: ReactNode }) {
+function Block({ title, children, rich }: { title: string; children?: ReactNode; rich?: string }) {
   return (
     <div>
       <h3 className="text-sm font-medium text-ink-muted">{title}</h3>
-      <div className="reading mt-1 whitespace-pre-wrap text-ink">{children}</div>
+      <div className={cn('reading mt-1 text-ink', rich === undefined && 'whitespace-pre-wrap')}>{rich !== undefined ? <RichText value={rich} /> : children}</div>
     </div>
   );
 }
@@ -110,8 +111,8 @@ export function FeedbackCard({ feedback: f, title, footer, className }: Feedback
       {f.score_shared != null && (
         <p className="tabular text-lg font-semibold text-ink">{t('feedback.score', { score: num(f.score_shared, 1) })}</p>
       )}
-      {f.strengths && <Block title={t('feedback.strengths')}>{f.strengths}</Block>}
-      {f.improvements && <Block title={t('feedback.improvements')}>{f.improvements}</Block>}
+      {f.strengths && <Block title={t('feedback.strengths')} rich={f.strengths} />}
+      {f.improvements && <Block title={t('feedback.improvements')} rich={f.improvements} />}
       {f.judge_comments && Object.keys(f.judge_comments).length > 0 && (
         <Block title={t('feedback.judgeComments')}>
           <ul className="space-y-2">
@@ -121,7 +122,7 @@ export function FeedbackCard({ feedback: f, title, footer, className }: Feedback
                 <ul className="list-disc pl-5">
                   {comments.map((c, i) => (
                     <li key={i} className="text-ink">
-                      {c}
+                      <RichText value={c} />
                     </li>
                   ))}
                 </ul>
@@ -136,11 +137,9 @@ export function FeedbackCard({ feedback: f, title, footer, className }: Feedback
         </Block>
       )}
       {(f.decision_code || f.decision_reason) && (
-        <Block title={t('feedback.decision')}>
-          {f.decision_reason || statusLabel(f.decision_code)}
-        </Block>
+        <Block title={t('feedback.decision')} rich={f.decision_reason || statusLabel(f.decision_code)} />
       )}
-      {f.next_steps && <Block title={t('feedback.nextSteps')}>{f.next_steps}</Block>}
+      {f.next_steps && <Block title={t('feedback.nextSteps')} rich={f.next_steps} />}
       {footer}
     </Card>
   );

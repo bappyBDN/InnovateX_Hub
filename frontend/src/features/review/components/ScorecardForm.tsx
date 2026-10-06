@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Field, Textarea } from '@/components/ui';
+import { Field, RichTextEditor } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { liveTotal, type Criterion, type ReviewDraft, type Scorecard } from '../types';
 
@@ -122,11 +122,12 @@ export function ScorecardForm({ scorecard, value, onChange, readOnly, errors = {
                 required={needsComment}
                 error={err ?? (needsComment && !(row?.comment ?? '').trim() ? t('review.commentRequired', { rating }) : null)}
               >
-                <Textarea
+                <RichTextEditor
+                  compact
                   rows={2}
                   value={row?.comment ?? ''}
                   readOnly={readOnly}
-                  onChange={(e) => setScore(c.id, { comment: e.target.value })}
+                  onChange={(v) => setScore(c.id, { comment: v })}
                 />
               </Field>
             )}
@@ -170,28 +171,13 @@ export function ScorecardForm({ scorecard, value, onChange, readOnly, errors = {
       </fieldset>
 
       <Field label={t('review.strengths')} required help={t('review.sharedHelp')} error={errors.strengths}>
-        <Textarea
-          rows={3}
-          value={value.strengths}
-          readOnly={readOnly}
-          onChange={(e) => onChange({ ...value, strengths: e.target.value })}
-        />
+        <RichTextEditor rows={4} value={value.strengths} readOnly={readOnly} onChange={(v) => onChange({ ...value, strengths: v })} />
       </Field>
       <Field label={t('review.improvements')} required error={errors.improvements}>
-        <Textarea
-          rows={3}
-          value={value.improvements}
-          readOnly={readOnly}
-          onChange={(e) => onChange({ ...value, improvements: e.target.value })}
-        />
+        <RichTextEditor rows={4} value={value.improvements} readOnly={readOnly} onChange={(v) => onChange({ ...value, improvements: v })} />
       </Field>
       <Field label={t('review.privateNote')}>
-        <Textarea
-          rows={2}
-          value={value.private_note}
-          readOnly={readOnly}
-          onChange={(e) => onChange({ ...value, private_note: e.target.value })}
-        />
+        <RichTextEditor compact rows={3} value={value.private_note} readOnly={readOnly} onChange={(v) => onChange({ ...value, private_note: v })} />
       </Field>
     </div>
   );

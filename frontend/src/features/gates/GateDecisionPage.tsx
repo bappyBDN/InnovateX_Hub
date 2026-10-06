@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ExternalLink } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -6,7 +7,7 @@ import { toast } from 'sonner';
 import { api, ApiError, errorMessage } from '@/api/client';
 import { queryKeys } from '@/api/queryKeys';
 import { Callout } from '@/components/domain';
-import { Badge, Button, ButtonLink, Card, CardHeader, ErrorState, Field, PageHeader, PageSkeleton, Select, Textarea, isNotFound } from '@/components/ui';
+import { Badge, Button, ButtonLink, buttonClass, Card, CardHeader, ErrorState, Field, PageHeader, PageSkeleton, RichText, RichTextEditor, Select, isNotFound } from '@/components/ui';
 import NotFoundPage from '@/features/misc/NotFoundPage';
 import { formatDateTime } from '@/utils/dates';
 import { GateAnswers } from './GatePanel';
@@ -70,9 +71,17 @@ export default function GateDecisionPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader title={title} subtitle={t('gates.sentOn', { date: formatDateTime(d.submitted_at) })} />
-            {d.entity.summary && <p className="mt-3 text-sm text-ink-muted">{d.entity.summary}</p>}
+            {d.entity.summary && <div className="mt-3 text-sm text-ink-muted"><RichText value={d.entity.summary} /></div>}
+            {d.content.link && (
+              <div className="mt-3">
+                <a href={d.content.link} target="_blank" rel="noopener noreferrer" className={buttonClass('secondary', 'sm')}>
+                  <ExternalLink className="h-4 w-4" aria-hidden />
+                  {t('gates.openDemo')}
+                </a>
+              </div>
+            )}
             <div className="mt-4">
-              <GateAnswers fields={d.fields} content={d.content} />
+              <GateAnswers fields={d.fields} content={d.content} stage={d.stage} />
             </div>
           </Card>
           {d.earlier_feedback.some((r) => r.items.length > 0) && (
@@ -86,7 +95,7 @@ export default function GateDecisionPage() {
                       <Badge>{t('gates.round', { n: r.round_no })}</Badge>
                       <ul className="mt-1 list-disc space-y-1 pl-5 text-ink">
                         {r.items.map((x, i) => (
-                          <li key={i}>{x}</li>
+                          <li key={i}><RichText value={x} /></li>
                         ))}
                       </ul>
                     </div>
@@ -120,7 +129,7 @@ export default function GateDecisionPage() {
               />
             </Field>
             <Field label={t('gates.feedbackField')} required={decision === 'REVISE' || decision === 'REJECT'} help={t('gates.feedbackFieldHelp')} error={errors.feedback}>
-              <Textarea rows={6} maxLength={3000} disabled={!d.can_decide} value={feedback} onChange={(e) => setFeedback(e.target.value)} />
+              <RichTextEditor rows={6} maxLength={3000} disabled={!d.can_decide} value={feedback} onChange={setFeedback} />
             </Field>
             {d.can_decide && (
               <Button disabled={!decision} disabledReason={t('gates.chooseDecision')} loading={send.isPending} onClick={() => send.mutate()}>

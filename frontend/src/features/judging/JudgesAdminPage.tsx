@@ -7,7 +7,9 @@ import { GATE_TONE, type GateRow } from '@/features/gates/types';
 import type { I18nText } from '@/utils/i18n';
 import { tr } from '@/utils/i18n';
 import { statusLabel } from '@/utils/format';
+import { ChallengeFeedbackTab } from './ChallengeFeedbackTab';
 import { ChallengeJudgesTab } from './ChallengeJudgesTab';
+import { JudgeFeedbackPanel } from './JudgeFeedbackPanel';
 import { IdeaJudgesPanel } from './IdeaJudgesDialog';
 
 interface ChallengeRow {
@@ -29,7 +31,7 @@ const JUDGEABLE = ['SUBMITTED', 'TRIAGE', 'UNDER_REVIEW', 'CLARIFICATION_REQUEST
 export default function JudgesAdminPage() {
   const { t } = useTranslation();
   const [search, setSearch] = useSearchParams();
-  const tab = search.get('tab') === 'ideas' ? 'ideas' : search.get('tab') === 'reviews' ? 'reviews' : 'challenges';
+  const tab = (['ideas', 'reviews', 'feedback'] as const).find((k) => k === search.get('tab')) ?? 'challenges';
   const set = (key: string, value: string) => {
     const next = new URLSearchParams(search);
     if (value) next.set(key, value);
@@ -41,13 +43,13 @@ export default function JudgesAdminPage() {
   const ideas = useQuery({
     queryKey: ['ideas', 'for-judges'],
     queryFn: () => api.get<Page<IdeaRow>>('/initiatives', { scope: 'all', page_size: 200 }),
-    enabled: tab === 'ideas',
+    enabled: tab === 'ideas' || tab === 'feedback',
   });
 
   const gates = useQuery({ queryKey: ['admin', 'gates'], queryFn: () => api.get<Page<GateRow>>('/admin/gates') });
   const challengeId = search.get('challenge') ?? '';
   const ideaKey = search.get('idea') ?? '';
-  const ideaRows = (ideas.data?.items ?? []).filter((i) => JUDGEABLE.includes(i.current_state_code) || i.key === ideaKey);
+  const ideaRows = (ideas.data?.items ?? []).filter((i) => tab === 'feedback' || JUDGEABLE.includes(i.current_state_code) || i.key === ideaKey);
   const idea = ideaRows.find((i) => i.key === ideaKey);
 
   return (
@@ -60,7 +62,8 @@ export default function JudgesAdminPage() {
         tabs={[
           { value: 'challenges', label: t('judging.tabChallenges') },
           { value: 'ideas', label: t('judging.tabIdeas') },
-          { value: 'reviews', label: t('gates.adminTab'), count: gates.data?.items.filter((g) => g.status === 'IN_REVIEW').length },
+          { value: 'feedback', label: t('judgeFeedback.tab') },
+          { value: 'reviews', label: t('gates.adminTab'), count: gates.data?.items.filter((g) => g.status === 'IN_REVIEW' || g.status === 'SUBMITTED').length },
         ]}
       />
 
@@ -85,6 +88,52 @@ export default function JudgesAdminPage() {
           ) : (
             !challenges.isError && <EmptyState title={t('judging.chooseChallengeFirst')} />
           )}
+        </div>
+      )}
+
+      {tab === 'feedback' && (
+        <div role="tabpanel" aria-label={t('judgeFeedback.tab')} className="space-y-6">
+          <Card>
+            <h2 className="text-lg font-semibold text-ink">{t('judgeFeedback.innovationTitle')}</h2>
+            <p className="mb-3 text-sm text-ink-muted">{t('judgeFeedback.innovationHelp')}</p>
+            {ideas.isError ? (
+              <ErrorState error={ideas.error} onRetry={() => void ideas.refetch()} />
+            ) : (
+              <Field label={t('judgeFeedback.ideaField')} className="max-w-2xl">
+                <Select
+                  value={ideaKey}
+                  onChange={(e) => set('idea', e.target.value)}
+                  placeholder={ideas.isLoading ? t('common.loading') : t('judgeFeedback.chooseIdea')}
+                  options={ideaRows.map((i) => ({ value: i.key, label: `${i.code ?? ''} — ${i.title} — ${statusLabel(i.current_state_code)}` }))}
+                />
+              </Field>
+            )}
+            {ideaKey && idea ? (
+              <div className="mt-4 border-t border-line pt-4">
+                <JudgeFeedbackPanel key={ideaKey} entityType="initiative" entityId={ideaKey} />
+              </div>
+            ) : (
+              !ideas.isLoading && !ideas.isError && <p className="mt-4 text-sm text-ink-muted">{ideaRows.length ? t('judgeFeedback.chooseIdeaFirst') : t('judgeFeedback.noIdeas')}</p>
+            )}
+          </Card>
+          <Card>
+            <h2 className="text-lg font-semibold text-ink">{t('judgeFeedback.challengeTitle')}</h2>
+            <Field label={t('judging.challengeField')} className="mt-3 max-w-2xl">
+              <Select
+                value={challengeId}
+                onChange={(e) => set('challenge', e.target.value)}
+                placeholder={challenges.isLoading ? t('common.loading') : t('judging.chooseChallenge')}
+                options={(challenges.data?.items ?? []).map((c) => ({ value: c.id, label: `${tr(c.title_i18n)} — ${statusLabel(c.status_code)}` }))}
+              />
+            </Field>
+            {challengeId ? (
+              <div className="mt-4 border-t border-line pt-4">
+                <ChallengeFeedbackTab key={challengeId} challengeId={challengeId} />
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-ink-muted">{t('judging.chooseChallengeFirst')}</p>
+            )}
+          </Card>
         </div>
       )}
 
