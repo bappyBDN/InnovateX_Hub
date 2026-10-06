@@ -1,0 +1,50 @@
+# InnovateX Hub — every URL and port comes from the root .env file.
+#   docker compose up --build        start everything
+#   docker compose down              stop (data stays in the volume)
+#   docker compose down -v           stop and delete the database and uploads
+name: innovatex-hub
+
+services:
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      BACKEND_HOST: 0.0.0.0
+      BACKEND_PORT: 8000            # port inside the container; the host port is ${BACKEND_PORT}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - innovatex_data:/data
+    depends_on:
+      - mailpit
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_APP_NAME: ${VITE_APP_NAME}
+        VITE_DISPLAY_TIMEZONE: ${VITE_DISPLAY_TIMEZONE}
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mailpit:                          # catches every email so you can read it in the browser
+    image: axllent/mailpit:latest
+    ports:
+      - "${MAILPIT_UI_PORT:-8026}:8025"
+      - "${MAILPIT_SMTP_PORT:-1026}:1025"
+    restart: unless-stopped
+
+volumes:
+  innovatex_data:

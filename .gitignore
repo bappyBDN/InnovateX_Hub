@@ -1,0 +1,27 @@
+# ── Env files (only the examples are committed) ──────────────────────────────
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# ── Vercel ───────────────────────────────────────────────────────────────────
+.vercel/
+
+# ── Documents ────────────────────────────────────────────────────────────────
+all doc/
+
+# ── Dependencies / build output ──────────────────────────────────────────────
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ── Local data ───────────────────────────────────────────────────────────────
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+
+.DS_Store

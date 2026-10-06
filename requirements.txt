@@ -1,0 +1,8 @@
+# Used by Vercel for api/index.py. Keep in step with backend/requirements.txt (no uvicorn: Vercel runs the app itself).
+fastapi==0.115.6
+sqlalchemy==2.0.36
+pydantic==2.10.4
+pydantic-settings==2.7.1
+pyjwt==2.10.1
+python-multipart==0.0.20
+psycopg[binary]==3.2.3

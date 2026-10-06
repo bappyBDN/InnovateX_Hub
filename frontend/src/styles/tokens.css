@@ -1,0 +1,49 @@
+/* Design tokens (UI/UX spec §6.2). Values are "R G B" so Tailwind can add alpha.
+   Replace with Anwar Group brand colours when provided; keep the roles. */
+:root {
+  --ink: 27 42 58;
+  --ink-muted: 85 101 122;
+  --canvas: 245 247 248;
+  --surface: 255 255 255;
+  --line: 217 224 230;
+  --primary: 11 110 110;
+  --primary-soft: 227 241 240;
+  --primary-fg: 255 255 255;
+  --spark: 232 163 23;
+  --spark-soft: 253 244 222;
+  --spark-ink: 122 80 0;
+  --success: 30 127 79;
+  --success-soft: 226 243 234;
+  --warning: 178 107 0;
+  --warning-soft: 252 240 219;
+  --danger: 180 35 24;
+  --danger-soft: 252 231 229;
+  --info: 36 89 166;
+  --info-soft: 229 238 250;
+  --neutral-soft: 236 240 243;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --ink: 230 236 241;
+  --ink-muted: 163 177 192;
+  --canvas: 15 23 32;
+  --surface: 22 32 43;
+  --line: 44 58 73;
+  --primary: 72 190 186;
+  --primary-soft: 20 54 56;
+  --primary-fg: 10 24 28;
+  --spark: 240 180 60;
+  --spark-soft: 62 46 12;
+  --spark-ink: 250 214 138;
+  --success: 92 200 144;
+  --success-soft: 18 52 36;
+  --warning: 240 170 70;
+  --warning-soft: 60 42 10;
+  --danger: 246 128 118;
+  --danger-soft: 68 24 21;
+  --info: 128 172 240;
+  --info-soft: 22 40 70;
+  --neutral-soft: 32 44 57;
+  color-scheme: dark;
+}

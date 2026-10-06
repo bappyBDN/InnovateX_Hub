@@ -1,0 +1,100 @@
+{
+  "gates": {
+    "stage": {
+      "PROTOTYPE": "Prototype review",
+      "PILOT": "Pilot review"
+    },
+    "stageHelp": {
+      "PROTOTYPE": "Share the link to your prototype and explain how to use it. Judges then approve it, send it back for changes, or reject it.",
+      "PILOT": "Report what the pilot showed. Judges then approve it, send it back for changes, or reject it."
+    },
+    "status": {
+      "DRAFT": "Not sent yet",
+      "IN_REVIEW": "With the judges",
+      "APPROVED": "Approved",
+      "CHANGES_REQUESTED": "Sent back for changes",
+      "REJECTED": "Rejected"
+    },
+    "decision": {
+      "APPROVE": "Approve",
+      "REVISE": "Send back for changes",
+      "REJECT": "Reject"
+    },
+    "decisionHelp": {
+      "APPROVE": "it works and can move on",
+      "REVISE": "it needs changes first",
+      "REJECT": "it should stop here"
+    },
+    "field": {
+      "link": "Prototype link",
+      "how_to_use": "How to use it",
+      "notes": "Anything else the judges should know",
+      "summary": "What was tested in the pilot",
+      "results": "Results against the target",
+      "next_steps": "What is needed to go live"
+    },
+    "fieldHelp": {
+      "PROTOTYPE": {
+        "link": "A full link the judges can open, starting with https://",
+        "how_to_use": "Step by step: where to click, any login or test data they need."
+      },
+      "PILOT": {
+        "link": "Link to evidence (optional).",
+        "summary": "Where, for how long, and with whom.",
+        "results": "Numbers if you have them, compared with your target."
+      }
+    },
+    "send": "Send for review",
+    "sendAgain": "Send again for review",
+    "sendHelp": "After you send it you can't change it unless the judges send it back.",
+    "sent": "Sent to the judges",
+    "draftSaved": "Draft saved",
+    "sentOn": "Sent {{date}}",
+    "notSentYet": "Nothing has been sent yet.",
+    "round": "Round {{n}}",
+    "noJudges": "No judges are chosen yet. The admin has been told.",
+    "noJudgesShort": "No judges yet",
+    "tally": "{{decided}} of {{total}} judges have decided",
+    "tallyDetail": "{{approve}} approve, {{revise}} send back, {{reject}} reject",
+    "feedbackTitle": "Judges' feedback",
+    "aJudge": "Judge {{n}}",
+    "adminDecision": "Admin's decision",
+    "changesTitle": "The judges asked for changes",
+    "changesBody": "Read the feedback, update the form below and send it again.",
+    "approved": {
+      "PROTOTYPE": "Prototype approved. This moves on to the pilot.",
+      "PILOT": "Pilot approved. This can now move to production."
+    },
+    "rejectedTitle": "This was rejected. See the feedback above.",
+    "earlierRounds_one": "{{count}} earlier round",
+    "earlierRounds_other": "{{count}} earlier rounds",
+    "adminTitle": "Judges for this review (admin)",
+    "waiting": "Waiting",
+    "finalCall": "Final decision by the admin",
+    "finalCallHelp": "Most judges decide. Use this only to decide yourself; it overrides the judges and needs a reason.",
+    "decisionField": "Decision",
+    "chooseDecision": "Choose a decision",
+    "reason": "Reason",
+    "reasonNeeded": "Choose a decision and write a reason.",
+    "decideNow": "Decide now",
+    "decisionSaved": "Decision saved",
+    "decide": "Decide",
+    "yourDecision": "Your decision",
+    "yourDecisionHelp": "Open the link, try it, then decide. No score is needed.",
+    "feedbackField": "Feedback for the candidate",
+    "feedbackFieldHelp": "Shared with the candidate without your name. Needed when you send it back or reject it.",
+    "giveDecision": "Give decision",
+    "changeDecision": "Change my decision",
+    "youDecided": "You decided:",
+    "closedNoDecision": "This review is already decided.",
+    "majorityNote": "{{total}} judges review this. It passes when most approve; the admin can make the final call.",
+    "earlierFeedback": "Feedback from earlier rounds",
+    "earlierFeedbackHelp": "What the candidate was asked to change.",
+    "entryTitle": "Prototype",
+    "backToEntry": "Back to entry",
+    "entryNotOpen": "No prototype is needed for this entry, or the prototype step is not open yet.",
+    "adminTab": "Prototype & pilot reviews",
+    "adminHelp": "Every prototype and pilot sent for review. Open one to choose its judges or make the final decision.",
+    "adminEmpty": "Nothing has been sent for review yet."
+  }
+}

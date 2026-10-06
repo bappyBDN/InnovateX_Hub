@@ -1,0 +1,53 @@
+@import './tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Noto Sans', 'Noto Sans Bengali', system-ui, 'Segoe UI', sans-serif;
+  }
+  body {
+    @apply bg-canvas text-ink antialiased;
+    line-height: 1.5;
+  }
+  html[lang='bn'] body {
+    line-height: 1.6;
+  }
+  h1, h2, h3, h4 {
+    @apply font-semibold;
+    line-height: 1.3;
+  }
+  /* Visible focus ring: 2px primary, offset 2px (spec §13.5) */
+  :focus-visible {
+    outline: 2px solid rgb(var(--primary));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .control {
+    @apply block w-full rounded-control border border-line bg-surface px-3 py-2 text-base text-ink placeholder:text-ink-muted/70 disabled:cursor-not-allowed disabled:bg-neutral-soft disabled:text-ink-muted;
+    min-height: 40px;
+  }
+  .control[aria-invalid='true'] {
+    @apply border-danger;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .reading {
+    max-width: 75ch;
+  }
+}
