@@ -66,6 +66,18 @@ def gate_overview(entity_type: str, entity_id: str, cu: CurrentUser = Depends(ge
                 row = db.get(StageGate, gate["id"])
                 votes = gates.votes_of(db, row)
                 stage["judges"] = [{"user": user_brief(db, v.judge_user_id), "decision": v.decision} for v in votes]
+                if stage.get("scored") and gate["status"] != "SUBMITTED":    # scored by the judges: show who scored what
+                    from app.modules.evaluation.models import ReviewAssignment, ReviewSummary
+                    rnd = subject.score_round(stage["stage"])
+                    stage["judges"] = []
+                    for a_ in db.scalars(select(ReviewAssignment).where(ReviewAssignment.review_round_id == rnd.id,
+                                                                        ReviewAssignment.entity_id == subject.id,
+                                                                        ReviewAssignment.status != "DECLINED_COI")).all():
+                        summ = db.scalar(select(ReviewSummary).where(ReviewSummary.review_assignment_id == a_.id))
+                        stage["judges"].append({"user": user_brief(db, a_.reviewer_user_id), "decision": None,
+                                                "scored": a_.status == "SUBMITTED",
+                                                "score": summ.weighted_score if summ and a_.status == "SUBMITTED" else None})
+                    stage["round_id"] = rnd.id
                 if gate["status"] == "SUBMITTED":      # the people who judged this work before, as a starting point
                     have = {v.judge_user_id for v in votes}
                     stage["suggested_judges"] = [user_brief(db, u) for u in gates.default_judges(db, subject, stage["stage"])

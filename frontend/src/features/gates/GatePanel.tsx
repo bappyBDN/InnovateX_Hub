@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { api, ApiError, errorMessage } from '@/api/client';
 import { Callout } from '@/components/domain';
-import { Badge, Button, Card, CardHeader, ErrorState, Field, Input, RichText, RichTextEditor, Select, Skeleton } from '@/components/ui';
+import { Badge, Button, ButtonLink, Card, CardHeader, ErrorState, Field, Input, RichText, RichTextEditor, Select, Skeleton } from '@/components/ui';
 import { QuickAddJudge } from '@/features/judging/QuickAdd';
 import type { AddJudgesResult } from '@/features/judging/types';
 import { formatDateTime } from '@/utils/dates';
@@ -78,7 +78,7 @@ function FeedbackList({ gate }: { gate: GateView }) {
   );
 }
 
-function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: GateStage; entityType: string; entityId: string; canManage: boolean; reload: () => Promise<unknown> }) {
+function StageCard({ stage, entityType, entityId, canManage, reload, challengeId }: { stage: GateStage; entityType: string; entityId: string; canManage: boolean; reload: () => Promise<unknown>; challengeId?: string | null }) {
   const { t } = useTranslation();
   const gate = stage.gate;
   const [values, setValues] = useState<Record<string, string>>(gate?.content ?? {});
@@ -141,7 +141,7 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
     <Card>
       <CardHeader
         title={title}
-        subtitle={t(`gates.stageHelp.${stage.stage}`)}
+        subtitle={stage.scored ? t(`gates.stageHelpScored.${stage.stage}`) : t(`gates.stageHelp.${stage.stage}`)}
         actions={
           gate ? (
             <span className="flex flex-wrap items-center gap-2">
@@ -152,6 +152,9 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
         }
       />
       <div className="mt-4 space-y-4">
+        {stage.deadline && (!gate || gate.status === 'DRAFT' || gate.status === 'CHANGES_REQUESTED') && (
+          <Callout tone="warning" title={t('gates.deadlineTitle', { date: formatDateTime(stage.deadline) })}>{t('gates.deadlineBody')}</Callout>
+        )}
         {status === 'CHANGES_REQUESTED' && <Callout tone="warning" title={t('gates.changesTitle')}>{stage.can_edit ? t('gates.changesBody') : null}</Callout>}
         {stage.stage === 'PILOT' && stage.can_edit && (!gate || gate.status === 'DRAFT') && <Callout tone="success" title={t('gates.eligibleTitle')}>{t('gates.eligibleBody')}</Callout>}
         {status === 'SUBMITTED' && !canManage && <Callout tone="info" title={t('gates.submittedTitle')}>{t('gates.submittedBody')}</Callout>}
@@ -225,8 +228,14 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
                       <li key={j.user.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                         <span className="font-medium text-ink">{j.user.full_name}</span>
                         <span className="flex items-center gap-2">
-                          {j.decision ? <Badge tone={DECISION_TONE[j.decision]}>{t(`gates.decision.${j.decision}`)}</Badge> : <Badge>{t('gates.waiting')}</Badge>}
-                          {(gate.status === 'IN_REVIEW' || gate.status === 'SUBMITTED') && !j.decision && (
+                          {stage.scored && j.scored ? (
+                            <Badge tone="success">{j.score != null ? `${j.score.toFixed(1)} / 100` : t('gates.scored')}</Badge>
+                          ) : j.decision ? (
+                            <Badge tone={DECISION_TONE[j.decision]}>{t(`gates.decision.${j.decision}`)}</Badge>
+                          ) : (
+                            <Badge>{t('gates.waiting')}</Badge>
+                          )}
+                          {(gate.status === 'IN_REVIEW' || gate.status === 'SUBMITTED') && !j.decision && !j.scored && (
                             <Button variant="ghost" size="sm" loading={removeJudge.isPending && removeJudge.variables === j.user.id} onClick={() => removeJudge.mutate(j.user!.id)}>
                               {t('common.remove')}
                             </Button>
@@ -251,7 +260,17 @@ function StageCard({ stage, entityType, entityId, canManage, reload }: { stage: 
                 {(stage.judges ?? []).length === 0 && <span className="text-sm text-ink-muted">{t('gates.needJudge')}</span>}
               </div>
             )}
-            {gate.status === 'IN_REVIEW' && (
+            {gate.status === 'IN_REVIEW' && stage.scored && (
+              <div className="space-y-2 border-t border-line pt-4">
+                <p className="text-sm text-ink-muted">{t('gates.scoredHelp')}</p>
+                {challengeId && stage.round_id && (
+                  <ButtonLink to={`/manage/challenges/${challengeId}/rounds/${stage.round_id}`} variant="secondary" size="sm">
+                    {t('gates.openRound')}
+                  </ButtonLink>
+                )}
+              </div>
+            )}
+            {gate.status === 'IN_REVIEW' && !stage.scored && (
               <div className="space-y-3 border-t border-line pt-4">
                 <p className="text-sm font-medium text-ink">{t('gates.finalCall')}</p>
                 <p className="text-sm text-ink-muted">{t('gates.finalCallHelp')}</p>
@@ -312,7 +331,7 @@ export function GatePanel({ entityType, entityId, onChange, emptyText }: { entit
   return (
     <div className="space-y-4">
       {d.stages.map((s) => (
-        <StageCard key={s.stage + (s.gate?.id ?? '')} stage={s} entityType={entityType} entityId={entityId} canManage={d.can_manage} reload={reload} />
+        <StageCard key={s.stage + (s.gate?.id ?? '')} stage={s} entityType={entityType} entityId={entityId} canManage={d.can_manage} reload={reload} challengeId={d.entity.challenge_id} />
       ))}
     </div>
   );

@@ -260,6 +260,11 @@ export default function EntryOverviewPage() {
                   </ButtonLink>
                 )}
                 {['FINALIST', 'FINAL_SUBMITTED'].includes(e.status_code) && (
+                  <ButtonLink to={`/entries/${e.id}/presentation`} size="sm" variant="secondary">
+                    {t('presentation.schedule')}
+                  </ButtonLink>
+                )}
+                {['FINALIST', 'FINAL_SUBMITTED'].includes(e.status_code) && (
                   <ButtonLink to={`/entries/${e.id}/prototype`} size="sm" variant="secondary">
                     {t('entries.pilotForm')}
                   </ButtonLink>

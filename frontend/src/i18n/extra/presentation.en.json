@@ -1,0 +1,42 @@
+{
+  "presentation": {
+    "title": "Presentation schedule",
+    "tab": "Presentations",
+    "schedule": "Schedule presentation",
+    "periodTitle": "Presentation period",
+    "windowHelp": "Choose a time between {{from}} and {{to}}.",
+    "notFinalist": "Scheduling opens when your entry becomes a finalist.",
+    "statusTitle": "Your presentation time",
+    "status": {
+      "PROPOSED": "Waiting for the innovation office",
+      "COUNTER_PROPOSED": "New time suggested",
+      "ACCEPTED": "Confirmed",
+      "CANCELLED": "Replaced"
+    },
+    "noneYet": "You have not chosen a time yet.",
+    "noneYetShort": "No time chosen",
+    "waiting": "You proposed {{date}}. The innovation office will accept it or suggest another time.",
+    "confirmed": "Confirmed: {{date}}",
+    "confirmedHelp": "Present your working solution live. Prepare your demo, results so far and what you need for a pilot.",
+    "counterTitle": "The innovation office suggests {{date}}",
+    "counterHelp": "Accept it, or propose another time inside the period.",
+    "youSuggested": "You suggested {{date}}. Waiting for the team.",
+    "propose": "Choose a date and time",
+    "proposeAnother": "Propose another time",
+    "proposeHelp": "Pick the day and time you can present. The innovation office will accept it or suggest another time.",
+    "send": "Send",
+    "proposed": "Sent to the innovation office",
+    "agree": "Accept the suggested time",
+    "accept": "Accept this time",
+    "accepted": "Presentation time confirmed",
+    "suggest": "Suggest another time",
+    "suggestHelp": "Choose a time inside the period. The team can accept it or propose another.",
+    "sendSuggestion": "Send suggestion",
+    "suggested": "New time sent to the team",
+    "dateTime": "Date and time",
+    "note": "Note (optional)",
+    "history": "Earlier proposals",
+    "adminHelp": "Each finalist proposes a time inside the final submission period. Accept it or suggest another time.",
+    "noFinalists": "No finalists yet."
+  }
+}

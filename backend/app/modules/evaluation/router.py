@@ -97,7 +97,13 @@ def workspace(assignment_id: str, cu: CurrentUser = Depends(get_current_user), d
     rnd = db.get(ReviewRound, a.review_round_id)
     blind = False   # judges see who submitted
     entity = _entity_brief(db, a, rnd, blind)
-    if a.entity_type == "challenge_entry":
+    if a.entity_type == "challenge_entry" and rnd.round_type == "PROTOTYPE":
+        from app.modules.evaluation.gates import gate_as_form, latest as latest_gate
+        form_, content_ = gate_as_form(db, a.entity_id)
+        g_ = latest_gate(db, "challenge_entry", a.entity_id, "PROTOTYPE")
+        submission = {"form": form_, "content": content_, "version_no": g_.round_no if g_ else 1,
+                      "submitted_at": iso(g_.submitted_at) if g_ else None}
+    elif a.entity_type == "challenge_entry":
         version = db.get(SubmissionVersion, a.submission_version_id) if a.submission_version_id else None
         if not version:
             vid = svc.latest_version_id(db, a.entity_id, rnd.round_type)

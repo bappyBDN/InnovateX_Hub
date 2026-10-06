@@ -13,7 +13,7 @@ from app.core.events import audit, publish_event, record_history
 from app.core.permissions import CurrentUser, get_current_user, get_entry_or_404, is_entry_member, require_roles
 from app.modules.challenges import service as csvc
 from app.modules.challenges.models import Challenge, ChallengeEntry, ChallengePrize, EntrySubmission, Team
-from app.modules.delivery.models import (AwardCategory, AwardDecision, DemoEvent, DemoSlot, Kpi, KpiMeasurement, KpiVerifierAssignment,
+from app.modules.delivery.models import (AwardCategory, AwardDecision, DemoEvent, DemoSlot, Kpi, KpiMeasurement, KpiVerifierAssignment, PresentationRequest,
                                          Milestone, ProgressUpdate, ReusableAsset, Reward)
 from app.modules.evaluation import service as esvc
 from app.modules.evaluation.gates import latest as latest_gate
@@ -215,6 +215,175 @@ def book_slot(entry_id: str, slot_id: str, cu: CurrentUser = Depends(get_current
                   link=f"/entries/{entry.id}/demo")
     db.commit()
     return {"ok": True}
+
+
+# ---- Final presentation schedule ---------------------------------------------------------------------
+PRESENTING = ("FINALIST", "FINAL_SUBMITTED", "JUDGED")
+
+
+def _window(db: Session, challenge_id: str):
+    """The days a finalist may present on: the final submission period."""
+    phase = csvc.phase_of(db, challenge_id, "FINAL_SUBMISSION")
+    return (phase.opens_at, phase.closes_at) if phase else (None, None)
+
+
+def _presentation_view(db: Session, r: PresentationRequest) -> dict:
+    return {"id": r.id, "status": r.status, "proposed_start": iso(r.proposed_start), "note": r.note,
+            "suggested_start": iso(r.suggested_start), "admin_note": r.admin_note, "scheduled_start": iso(r.scheduled_start),
+            "decided_at": iso(r.decided_at), "created_at": iso(r.created_at),
+            "proposed_by": (user_brief(db, r.proposed_by) or {}).get("full_name")}
+
+
+def _requests_of(db: Session, entry_id: str) -> list[PresentationRequest]:
+    return list(db.scalars(select(PresentationRequest).where(PresentationRequest.entry_id == entry_id)
+                           .order_by(PresentationRequest.created_at.desc())).all())
+
+
+def _check_in_window(db: Session, entry: ChallengeEntry, when: datetime) -> datetime:
+    start = csvc.as_naive(when)
+    opens, closes = _window(db, entry.challenge_id)
+    if not opens:
+        raise DomainError("NO_WINDOW", "The presentation period is not set for this challenge.", 409)
+    if not opens <= start <= closes:
+        raise DomainError("OUTSIDE_WINDOW", f"Choose a time between {csvc._fmt(opens)} and {csvc._fmt(closes)}.", 422,
+                          {"fields": {"proposed_at": "Outside the presentation period."}})
+    if start < utcnow():
+        raise DomainError("IN_THE_PAST", "Choose a time in the future.", 422, {"fields": {"proposed_at": "Choose a future time."}})
+    return start
+
+
+@router.get("/entries/{entry_id}/presentation")
+def presentation_for_entry(entry_id: str, cu: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    entry = get_entry_or_404(db, cu, entry_id)
+    member = is_entry_member(db, entry, cu.id)
+    opens, closes = _window(db, entry.challenge_id)
+    reqs = _requests_of(db, entry.id)
+    current = next((r for r in reqs if r.status != "CANCELLED"), None)
+    admin = cu.has_role("SUPER_ADMIN")
+    return {"window": {"opens_at": iso(opens), "closes_at": iso(closes)},
+            "current": _presentation_view(db, current) if current else None,
+            "history": [_presentation_view(db, r) for r in reqs],
+            "scheduled_at": iso(current.scheduled_start) if current and current.status == "ACCEPTED" else None,
+            "is_finalist": entry.status_code in PRESENTING,
+            "can_propose": member and entry.status_code in PRESENTING and bool(opens) and (not current or current.status != "ACCEPTED"),
+            "can_decide": admin and bool(current) and current.status == "PROPOSED",
+            "can_accept_suggestion": member and bool(current) and current.status == "COUNTER_PROPOSED",
+            "entry": {"id": entry.id, "code": entry.code, "title": entry.title}}
+
+
+class PresentationIn(BaseModel):
+    proposed_at: datetime
+    note: str | None = None
+
+
+@router.post("/entries/{entry_id}/presentation")
+def propose_presentation(entry_id: str, body: PresentationIn, request: Request, cu: CurrentUser = Depends(get_current_user),
+                         db: Session = Depends(get_db)):
+    entry = get_entry_or_404(db, cu, entry_id, members_only=True)
+    if entry.status_code not in PRESENTING:
+        raise DomainError("NOT_A_FINALIST", "Scheduling the presentation is for finalists.", 409)
+    start = _check_in_window(db, entry, body.proposed_at)
+    for old in _requests_of(db, entry.id):
+        if old.status in ("PROPOSED", "COUNTER_PROPOSED"):
+            old.status = "CANCELLED"
+        elif old.status == "ACCEPTED":
+            old.status = "CANCELLED"        # a new proposal replaces a confirmed time
+    r = PresentationRequest(entry_id=entry.id, proposed_start=start, proposed_by=cu.id, note=(body.note or "").strip() or None,
+                            status="PROPOSED", created_by=cu.id)
+    db.add(r)
+    from app.modules.evaluation.gates import admin_ids
+    publish_event(db, "PRESENTATION_PROPOSED", "challenge_entry", entry.id, cu.id, users=admin_ids(db),
+                  title=f"Presentation time proposed: {entry.code}",
+                  body=f"{entry.title} proposes {csvc._fmt(start)}. Accept it or suggest another time.",
+                  link=f"/entries/{entry.id}/presentation", needs_action=True)
+    audit(db, cu.id, "UPDATE", "challenge_entry", entry.id, f"Proposed a presentation time for {entry.code}", {}, request.state.request_id)
+    db.commit()
+    return {"id": r.id, "status": r.status}
+
+
+def _request_or_404(db: Session, request_id: str) -> tuple[PresentationRequest, ChallengeEntry]:
+    r = db.get(PresentationRequest, request_id)
+    entry = db.get(ChallengeEntry, r.entry_id) if r else None
+    if not r or not entry:
+        raise not_found("Request")
+    return r, entry
+
+
+@router.post("/presentation-requests/{request_id}/accept")
+def accept_presentation(request_id: str, request: Request, cu: CurrentUser = Depends(require_roles("SUPER_ADMIN")),
+                        db: Session = Depends(get_db)):
+    """The admin accepts the time the team proposed."""
+    r, entry = _request_or_404(db, request_id)
+    if r.status != "PROPOSED":
+        raise DomainError("NOT_WAITING", "There is nothing to accept on this request.", 409)
+    r.status, r.scheduled_start, r.decided_by, r.decided_at = "ACCEPTED", r.proposed_start, cu.id, utcnow()
+    publish_event(db, "PRESENTATION_CONFIRMED", "challenge_entry", entry.id, cu.id, users=csvc.notify_entry(db, entry),
+                  title=f"Presentation confirmed: {entry.code}",
+                  body=f"Your presentation is on {csvc._fmt(r.scheduled_start)}. Prepare your demo and results.",
+                  link=f"/entries/{entry.id}/presentation")
+    audit(db, cu.id, "UPDATE", "challenge_entry", entry.id, f"Accepted the presentation time for {entry.code}", {}, request.state.request_id)
+    db.commit()
+    return {"status": r.status, "scheduled_at": iso(r.scheduled_start)}
+
+
+class SuggestIn(BaseModel):
+    suggested_at: datetime
+    note: str | None = None
+
+
+@router.post("/presentation-requests/{request_id}/suggest")
+def suggest_presentation(request_id: str, body: SuggestIn, request: Request, cu: CurrentUser = Depends(require_roles("SUPER_ADMIN")),
+                         db: Session = Depends(get_db)):
+    """The admin can't make that time and suggests another one inside the same period."""
+    r, entry = _request_or_404(db, request_id)
+    if r.status != "PROPOSED":
+        raise DomainError("NOT_WAITING", "There is nothing to change on this request.", 409)
+    start = _check_in_window(db, entry, body.suggested_at)
+    r.status, r.suggested_start, r.admin_note, r.decided_by, r.decided_at = "COUNTER_PROPOSED", start, (body.note or "").strip() or None, cu.id, utcnow()
+    publish_event(db, "PRESENTATION_COUNTER", "challenge_entry", entry.id, cu.id, users=csvc.notify_entry(db, entry),
+                  title=f"New presentation time suggested: {entry.code}",
+                  body=f"The innovation office suggests {csvc._fmt(start)}. Accept it or propose another time.",
+                  link=f"/entries/{entry.id}/presentation", needs_action=True)
+    audit(db, cu.id, "UPDATE", "challenge_entry", entry.id, f"Suggested another presentation time for {entry.code}", {}, request.state.request_id)
+    db.commit()
+    return {"status": r.status, "suggested_at": iso(r.suggested_start)}
+
+
+@router.post("/presentation-requests/{request_id}/accept-suggestion")
+def accept_suggestion(request_id: str, request: Request, cu: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """The team agrees to the time the admin suggested."""
+    r, entry = _request_or_404(db, request_id)
+    get_entry_or_404(db, cu, entry.id, members_only=True)
+    if r.status != "COUNTER_PROPOSED":
+        raise DomainError("NOT_WAITING", "There is no suggestion to accept.", 409)
+    r.status, r.scheduled_start = "ACCEPTED", r.suggested_start
+    from app.modules.evaluation.gates import admin_ids
+    publish_event(db, "PRESENTATION_CONFIRMED", "challenge_entry", entry.id, cu.id, users=[*admin_ids(db), *csvc.notify_entry(db, entry)],
+                  title=f"Presentation confirmed: {entry.code}", body=f"{entry.title} presents on {csvc._fmt(r.scheduled_start)}.",
+                  link=f"/entries/{entry.id}/presentation")
+    audit(db, cu.id, "UPDATE", "challenge_entry", entry.id, f"Agreed to the suggested presentation time for {entry.code}", {}, request.state.request_id)
+    db.commit()
+    return {"status": r.status, "scheduled_at": iso(r.scheduled_start)}
+
+
+@router.get("/manage/challenges/{challenge_id}/presentations")
+def presentations_overview(challenge_id: str, cu: CurrentUser = Depends(require_roles(*OVERSEERS)), db: Session = Depends(get_db)):
+    ch = db.get(Challenge, challenge_id)
+    if not ch:
+        raise not_found("Challenge")
+    opens, closes = _window(db, ch.id)
+    rows = []
+    for e in db.scalars(select(ChallengeEntry).where(ChallengeEntry.challenge_id == ch.id,
+                                                     ChallengeEntry.status_code.in_(PRESENTING + ("WINNER", "RUNNER_UP", "PARTICIPANT")))
+                        .order_by(ChallengeEntry.code)).all():
+        reqs = _requests_of(db, e.id)
+        current = next((r for r in reqs if r.status != "CANCELLED"), None)
+        team = db.get(Team, e.team_id) if e.team_id else None
+        rows.append({"entry": {"id": e.id, "code": e.code, "title": e.title, "status_code": e.status_code,
+                               "entrant": team.name if team else (user_brief(db, e.lead_user_id) or {}).get("full_name")},
+                     "current": _presentation_view(db, current) if current else None})
+    rows.sort(key=lambda r: ((r["current"] or {}).get("scheduled_start") or "9", r["entry"]["code"]))
+    return {"window": {"opens_at": iso(opens), "closes_at": iso(closes)}, "items": rows, "can_decide": cu.has_role("SUPER_ADMIN")}
 
 
 # ---- Impact: KPIs, measurements, verification ----------------------------------------------------------

@@ -124,6 +124,14 @@
     "needJudge": "Add at least one judge first.",
     "sentToJudges": "Sent to the judges",
     "waitingForYou": "Waiting for judges",
-    "openDemo": "Open demo link"
+    "openDemo": "Open demo link",
+    "stageHelpScored": {
+      "PROTOTYPE": "You are shortlisted — start building. Share your demo link and explain how to use it before the deadline. After you submit, the innovation office chooses the judges. They give a score and a comment, and the top candidates become finalists."
+    },
+    "deadlineTitle": "Deadline: {{date}}",
+    "deadlineBody": "Submit this form before the deadline.",
+    "scored": "Scored",
+    "scoredHelp": "The judges give a score and a comment. When they are done, open the round to see the scores and make the second shortlist (the finalists).",
+    "openRound": "Open scores and shortlist"
   }
 }

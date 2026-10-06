@@ -82,6 +82,7 @@ export const router = createBrowserRouter([
       },
       { path: '/entries/:id/milestones', element: page(() => import('@/features/entries/MilestonesPage')) },
       { path: '/entries/:id/demo', element: page(() => import('@/features/entries/DemoBookingPage')) },
+      { path: '/entries/:id/presentation', element: page(() => import('@/features/entries/PresentationPage')) },
       { path: '/entries/:id/feedback', element: page(() => import('@/features/entries/FeedbackPage')) },
 
       // Ideas

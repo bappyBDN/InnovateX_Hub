@@ -346,9 +346,53 @@ assert eg["status"] == "SUBMITTED"
 call("admin", "POST", f"/gates/{eg['id']}/send-for-review", {"user_ids": []}, expect=422, label="judges are chosen first")
 panel = [u["id"] for u in call("admin", "GET", f"/gates/challenge_entry/{r4['id']}")["stages"][0]["suggested_judges"]]
 assert panel, "the challenge judges are suggested"
+ov0 = call("admin", "GET", f"/gates/challenge_entry/{r4['id']}")["stages"][0]
+assert ov0["scored"] and ov0["deadline"], "the demo is scored and has a deadline"
 call("admin", "POST", f"/gates/{eg['id']}/send-for-review", {"user_ids": panel})
-call("admin", "POST", f"/gates/{eg['id']}/decide", {"decision": "APPROVE", "note": "Works well for the handover team."})
+call("admin", "POST", f"/gates/{eg['id']}/decide", {"decision": "APPROVE", "note": "Works well for the handover team."}, expect=409,
+     label="judges give a score and comment; the shortlist decides")
+# The judges score the demo (score + comment), then the second shortlist (top N) makes the finalists.
+pr4 = next(r for r in call("owner", "GET", f"/manage/challenges/{C4['id']}")["rounds"] if r["round_type"] == "PROTOTYPE")
+scored = 0
+for u in ("judge1", "judge2", "judge3", "judge4"):
+    for a_ in call(u, "GET", "/me/review-queue")["items"]:
+        if a_.get("gate") or a_["status"] == "SUBMITTED" or a_["round_type"] != "PROTOTYPE" or a_["entity"]["id"] != r4["id"]:
+            continue
+        w_ = call(u, "GET", f"/review-assignments/{a_['id']}")
+        assert w_["submission"]["content"]["link"] == "https://demo.example.org/handover", "the judge sees the demo link"
+        call(u, "POST", f"/review-assignments/{a_['id']}/actions/submit",
+             {"scores": [{"criterion_id": c["id"], "rating": 4} for c in w_["scorecard"]["criteria"]], "recommendation": "YES",
+              "strengths": "Works as described.", "improvements": "Add an offline mode."})
+        scored += 1
+assert scored >= 1, "the chosen judges had the demo in My judging"
+sl4 = call("owner", "POST", f"/review-rounds/{pr4['id']}/shortlist/actions/propose")
+call("owner", "POST", f"/shortlists/{sl4['id']}/actions/confirm")
+call("owner", "POST", f"/shortlists/{sl4['id']}/actions/publish")
 assert call("rahim", "GET", f"/entries/{r4['id']}")["status_code"] == "FINALIST"
+# Presentation: the finalist proposes a time inside the final-submission period; the admin accepts or suggests another.
+pres = call("rahim", "GET", f"/entries/{r4['id']}/presentation")
+assert pres["can_propose"] and pres["window"]["opens_at"], pres
+from datetime import datetime, timedelta
+w_open = datetime.fromisoformat(pres["window"]["opens_at"].replace("Z", ""))
+w_close = datetime.fromisoformat(pres["window"]["closes_at"].replace("Z", ""))
+future = max(w_open, datetime.utcnow() + timedelta(days=1)) + timedelta(hours=1)
+call("rahim", "POST", f"/entries/{r4['id']}/presentation", {"proposed_at": (w_close + timedelta(days=3)).isoformat()}, expect=422, label="outside the period")
+if future < w_close:
+    pr = call("rahim", "POST", f"/entries/{r4['id']}/presentation", {"proposed_at": future.isoformat(), "note": "After the morning shift."})
+    call("rahim", "POST", f"/presentation-requests/{pr['id']}/accept", expect=404, label="only the admin accepts")
+    call("admin", "POST", f"/presentation-requests/{pr['id']}/suggest", {"suggested_at": (w_close + timedelta(days=3)).isoformat()}, expect=422)
+    other = min(future + timedelta(hours=3), w_close)
+    call("admin", "POST", f"/presentation-requests/{pr['id']}/suggest", {"suggested_at": other.isoformat(), "note": "Room is busy then."})
+    assert call("rahim", "GET", f"/entries/{r4['id']}/presentation")["can_accept_suggestion"]
+    call("rahim", "POST", f"/presentation-requests/{pr['id']}/accept-suggestion")
+    done = call("admin", "GET", f"/entries/{r4['id']}/presentation")
+    assert done["scheduled_at"], "the time is confirmed"
+    pr2 = call("rahim", "POST", f"/entries/{r4['id']}/presentation", {"proposed_at": future.isoformat()})
+    call("admin", "POST", f"/presentation-requests/{pr2['id']}/accept")
+    ov4 = call("owner", "GET", f"/manage/challenges/{C4['id']}/presentations")
+    assert any(i["current"] and i["current"]["status"] == "ACCEPTED" for i in ov4["items"])
+else:
+    print("  (final-submission window already over for this demo challenge: scheduling accept path skipped)")
 ov = call("rahim", "GET", f"/gates/challenge_entry/{r4['id']}")
 assert [x["stage"] for x in ov["stages"]] == ["PROTOTYPE", "PILOT"] and ov["stages"][1]["can_edit"], "eligible for the pilot"
 eg2 = call("rahim", "PUT", f"/gates/challenge_entry/{r4['id']}/PILOT",

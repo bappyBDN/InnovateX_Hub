@@ -17,7 +17,9 @@ from app.core.permissions import CurrentUser, get_entry_or_404, is_entry_member
 from app.modules.challenges import service as csvc
 from app.modules.challenges.models import Challenge, ChallengeEntry, Team
 from app.modules.evaluation import service as svc
-from app.modules.evaluation.models import PanelMember, ReviewAssignment, StageGate, StageGateVote
+from datetime import timedelta
+
+from app.modules.evaluation.models import PanelMember, ReviewAssignment, ReviewRound, ReviewSummary, StageGate, StageGateVote
 from app.modules.identity.models import Role, User, UserRoleAssignment
 from app.modules.initiatives.models import Initiative, InitiativeMember
 from app.shared.models.base import iso, utcnow
@@ -78,6 +80,19 @@ class Subject:
 
     def stages(self) -> list[str]:
         return ["PROTOTYPE", "PILOT"]
+
+    def score_round(self, stage: str) -> ReviewRound | None:
+        """A challenge entry's demo is scored (score + comment) in the Prototype review round, then the top N become finalists."""
+        if self.entity_type == "challenge_entry" and stage == "PROTOTYPE":
+            return csvc.round_of(self.db, self.challenge.id, "PROTOTYPE")
+        return None
+
+    def deadline(self, stage: str):
+        """When the candidate must submit the form: the end of the Prototype submission window."""
+        if self.entity_type == "challenge_entry" and stage == "PROTOTYPE":
+            phase = csvc.phase_of(self.db, self.challenge.id, "PROTOTYPE")
+            return phase.closes_at if phase else None
+        return None
 
     def open_reason(self, stage: str) -> str | None:
         """None when the candidate may send this stage for review now; otherwise why not."""
@@ -195,10 +210,12 @@ def overview(db: Session, cu: CurrentUser, subject: Subject) -> dict:
         out.append({"stage": stage, "title": STAGE_TITLE[stage],
                     "fields": [{"key": k, "label": label, "required": req, "kind": kind} for k, label, req, kind in FIELDS[stage]],
                     "can_edit": editable, "closed_reason": None if gate and gate.status != "DRAFT" else reason,
+                    "scored": bool(subject.score_round(stage)), "deadline": iso(subject.deadline(stage)),
                     "gate": gate_view(db, gate, staff) if gate else None,
                     "earlier": [gate_view(db, g, staff) for g in found[1:]]})
     return {"entity": {"type": subject.entity_type, "id": subject.id, "code": subject.code, "title": subject.title,
-                       "context": subject.context},
+                       "context": subject.context,
+                       "challenge_id": subject.challenge.id if subject.entity_type == "challenge_entry" else None},
             "stages": out, "is_member": member, "can_manage": admin}
 
 
@@ -314,6 +331,29 @@ def send_for_review(db: Session, cu: CurrentUser, gate: StageGate, subject: Subj
     if not judges:
         raise DomainError("JUDGES_REQUIRED", "Choose at least one judge before sending it for review.", 422,
                           {"fields": {"user_ids": "Choose at least one judge."}})
+    rnd = subject.score_round(gate.stage)
+    if rnd:      # challenge entry: the judges give a score and a comment; the top N become finalists
+        due = rnd.due_at or (utcnow() + timedelta(days=7))
+        for uid in judges:
+            if not db.scalar(select(ReviewAssignment.id).where(ReviewAssignment.review_round_id == rnd.id,
+                                                               ReviewAssignment.reviewer_user_id == uid,
+                                                               ReviewAssignment.entity_id == subject.id)):
+                db.add(ReviewAssignment(review_round_id=rnd.id, reviewer_user_id=uid, entity_type="challenge_entry",
+                                        entity_id=subject.id, status="ASSIGNED", due_at=due, reviewer_weight=1, created_by=cu.id))
+        for v in votes_of(db, gate):         # the decision votes are not used when the demo is scored
+            db.delete(v)
+        if rnd.status == "SETUP":
+            rnd.status = "IN_PROGRESS"
+        gate.status = "IN_REVIEW"
+        name = STAGE_TITLE[gate.stage]
+        publish_event(db, "GATE_TO_REVIEW", subject.entity_type, subject.id, cu.id, users=judges,
+                      title=f"{name}: {subject.code}", body=f"{subject.title}. Open it under My judging, give a score and a comment.",
+                      link="/review", needs_action=True)
+        publish_event(db, "GATE_IN_REVIEW", subject.entity_type, subject.id, cu.id, users=subject.people(),
+                      title=f"{name} is with the judges: {subject.code}",
+                      body="The judges are scoring it now. The top candidates become finalists.", link=subject.link)
+        db.flush()
+        return result
     gate.status = "IN_REVIEW"
     name = STAGE_TITLE[gate.stage]
     publish_event(db, "GATE_TO_REVIEW", subject.entity_type, subject.id, cu.id, users=judges,
@@ -435,6 +475,9 @@ def decide(db: Session, cu: CurrentUser, gate: StageGate, decision: str, note: s
     """The admin's final call. It overrides the judges and always needs a reason."""
     if gate.status != "IN_REVIEW":
         raise DomainError("REVIEW_CLOSED", "This review is already decided.", 409)
+    if Subject(db, gate.entity_type, gate.entity_id).score_round(gate.stage):
+        raise DomainError("SCORED_REVIEW", "The judges are scoring this. The shortlist of the Prototype review round decides "
+                                           "who becomes a finalist.", 409)
     if decision not in DECISIONS:
         raise DomainError("DECISION_REQUIRED", "Choose a decision.", 422)
     if len((note or "").strip()) < 10:
@@ -468,3 +511,23 @@ def my_queue_items(db: Session, user_id: str) -> list[dict]:
 
 def is_gate_judge(db: Session, user_id: str) -> bool:
     return bool(db.scalar(select(StageGateVote.id).where(StageGateVote.judge_user_id == user_id).limit(1)))
+
+
+def gate_as_form(db: Session, entity_id: str) -> tuple[dict, dict]:
+    """Lets the scoring workspace show an entry's demo form (link + how to use it) as a read-only form."""
+    gate = latest(db, "challenge_entry", entity_id, "PROTOTYPE")
+    fields = [("link", "Demo link", "URL"), ("how_to_use", "How to use it", "LONG_TEXT"), ("notes", "Anything else the judges should know", "LONG_TEXT")]
+    form = {"id": "demo", "code": "DEMO_VIEW", "name_i18n": {"en": "Demo"}, "name": "Demo", "purpose": "PROTOTYPE", "version": 1,
+            "status": "PUBLISHED", "sections": [{"id": "demo", "code": "demo", "title_i18n": {"en": "Demo and how to use it"},
+                                                 "help_i18n": {}, "scored_on": [], "fields": [
+                {"id": k, "field_key": k, "label_i18n": {"en": label}, "help_i18n": {}, "placeholder_i18n": {}, "field_type": kind,
+                 "options": [], "is_required": False, "validation": {}} for k, label, kind in fields]}]}
+    return form, (gate.content if gate else {}) or {}
+
+
+def record_shortlist_outcome(db: Session, entry_id: str, finalist: bool, actor_id: str | None) -> None:
+    """When the prototype shortlist is published, the demo review is closed: finalist = approved, others = not selected."""
+    gate = latest(db, "challenge_entry", entry_id, "PROTOTYPE")
+    if gate and gate.status in ("SUBMITTED", "IN_REVIEW"):
+        gate.status = "APPROVED" if finalist else "REJECTED"
+        gate.decided_at, gate.decided_by = utcnow(), actor_id

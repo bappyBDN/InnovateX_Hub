@@ -91,6 +91,21 @@ class KpiVerifierAssignment(Base, StdColumns):
     assigned_by = ref()
 
 
+class PresentationRequest(Base, StdColumns):
+    """A finalist proposes a time for the live presentation; the admin accepts it or suggests another time."""
+    __tablename__ = "presentation_requests"
+    entry_id = ref(False)
+    proposed_start = ts()
+    proposed_by = ref()
+    note = text()
+    status = sc(20, default="PROPOSED")       # PROPOSED, COUNTER_PROPOSED, ACCEPTED, CANCELLED
+    suggested_start = ts()                   # the admin's other suggestion
+    admin_note = text()
+    decided_by = ref()
+    decided_at = ts()
+    scheduled_start = ts()                   # the confirmed time
+
+
 class BenefitRecord(Base, StdColumns):
     __tablename__ = "benefit_records"
     entity_type = sc(60)

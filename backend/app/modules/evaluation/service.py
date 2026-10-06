@@ -398,7 +398,7 @@ NEXT_STEPS = {
                    "If a demo is asked for, share your demo link and how to use it on the Prototype page.",
     "WAITLISTED": "You're on the waitlist. If a shortlisted entry withdraws, we'll tell you straight away.",
     "NOT_SHORTLISTED": "Thank you for taking part. You can still submit this as an open idea any time.",
-    "FINALIST": "Book your demo slot and submit your final project before the deadline. You are also eligible for the pilot: open the pilot form on the Prototype page.",
+    "FINALIST": "Choose a date and time for your live presentation. You are also eligible for the pilot: open the pilot form on the Demo & pilot page.",
     "NOT_SELECTED": "Thank you for building a prototype. Your work stays on record and can continue as an open idea.",
 }
 
@@ -429,6 +429,9 @@ def publish_shortlist(db: Session, shortlist: Shortlist, rnd: ReviewRound, actor
         record_history(db, "challenge_entry", entry.id, entry.status_code, new, "SHORTLIST_PUBLISHED", actor_id,
                        se.override_reason)
         entry.status_code = new
+        if rnd.round_type == "PROTOTYPE":
+            from app.modules.evaluation.gates import record_shortlist_outcome
+            record_shortlist_outcome(db, entry.id, se.final_decision == "IN", actor_id)
         if rnd.round_type == "METHODOLOGY":
             entry.prototype_required = bool(se.prototype_required) and se.final_decision == "IN"
         fb = db.scalar(select(Feedback).where(Feedback.review_round_id == rnd.id, Feedback.entity_id == entry.id))
@@ -447,8 +450,19 @@ def publish_shortlist(db: Session, shortlist: Shortlist, rnd: ReviewRound, actor
         titles = {"SHORTLISTED": "Your entry is shortlisted", "WAITLISTED": "Your entry is on the waitlist",
                   "NOT_SHORTLISTED": "Shortlist result and your feedback", "FINALIST": "You're a finalist",
                   "NOT_SELECTED": "Prototype result and your feedback"}
+        body = NEXT_STEPS.get(new, "")
+        if new == "SHORTLISTED" and ch.prototype_policy != "NONE":
+            phase = csvc.phase_of(db, ch.id, "PROTOTYPE")
+            if phase:   # tell the team when to be ready
+                body = (f"You are shortlisted! Start building. Share your demo link and how to use it by {csvc._fmt(phase.closes_at)} "
+                        "on the Demo & pilot page.")
+        if new == "FINALIST":
+            fphase = csvc.phase_of(db, ch.id, "FINAL_SUBMISSION")
+            body = ("You are a finalist! Choose a date and time for your live presentation"
+                    + (f" between {csvc._fmt(fphase.opens_at)} and {csvc._fmt(fphase.closes_at)}" if fphase else "")
+                    + ". The innovation office will accept it or suggest another time.")
         publish_event(db, event, "challenge_entry", entry.id, actor_id, users=people,
-                      title=f"{titles[new]}: {entry.title}", body=NEXT_STEPS.get(new, ""),
+                      title=f"{titles[new]}: {entry.title}", body=body,
                       link=f"/entries/{entry.id}" if se.final_decision == "IN" else f"/entries/{entry.id}/feedback",
                       needs_action=se.final_decision == "IN",
                       vars={"entry_code": entry.code, "challenge": en(ch.title_i18n), "decision": titles[new]},

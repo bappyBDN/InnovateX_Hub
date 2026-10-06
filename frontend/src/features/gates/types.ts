@@ -45,17 +45,21 @@ export interface GateStage {
   title: string;
   fields: GateField[];
   can_edit: boolean;
+  /** A challenge entry's demo is scored (score + comment) and the top N become finalists. */
+  scored?: boolean;
+  deadline?: string | null;
+  round_id?: string;
   closed_reason: string | null;
   gate: GateView | null;
   earlier: GateView[];
   /** Admin only. */
-  judges?: { user: { id: string; full_name: string; job_title?: string | null } | null; decision: GateDecision | null }[];
+  judges?: { user: { id: string; full_name: string; job_title?: string | null } | null; decision: GateDecision | null; scored?: boolean; score?: number | null }[];
   /** Admin only, while the form waits for judges: people who judged this work before. */
   suggested_judges?: { id: string; full_name: string; job_title?: string | null }[];
 }
 
 export interface GateOverview {
-  entity: { type: string; id: string; code: string; title: string; context: string };
+  entity: { type: string; id: string; code: string; title: string; context: string; challenge_id?: string | null };
   stages: GateStage[];
   is_member: boolean;
   can_manage: boolean;

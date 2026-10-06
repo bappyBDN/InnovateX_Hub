@@ -129,13 +129,15 @@ under review, clarification requested, shortlisted, on hold, Idea Bank, prototyp
 
 ## 2c-1. Challenge flow, start to finish
 
-(The challenge now works the same way as an idea: the admin can also choose one or many judges **for each submission** — Control centre → Entries → *Choose judges*, or on the entry page — with a due date; the average of their scores is the entry's score. Challenge-wide judges on the *Judges* tab still work for sharing every entry at once.)
+Open to individuals, teams or both (set in the challenge builder).
 
-1. **Methodology submitted** → the Super Admin / DMD chooses one or many judges (challenge → *Judges* tab; stage *Methodology*). Entries are shared out automatically.
-2. **Judges score** the methodology. **Top N:** on the round results page the admin sets *Change Top N* (and waitlist), then the system proposes the shortlist; a person confirms and publishes.
-3. **Shortlisted candidates get the demo form** (demo link + how to use it) on their *Demo & pilot* page. The admin chooses the judges and sends it; judges **approve or reject** (or send back) with feedback. Approved → *Finalist* (and eligible for the pilot).
-4. **Final presentation is given live (offline).** Afterwards, in *Results and awards*, the admin enters each finalist's **final presentation score**, rank, winner / runner-up and a note (*Rank by presentation score* helps), approves and publishes.
-5. **Final output in the system:** *Results & awards* lists the winners with score, jury note and prize; each entrant sees their result and score under their entry's feedback. An approved demo counts as working evidence for a top award.
+1. **Methodology submitted** → the Super Admin / DMD chooses judges: for the whole challenge (*Judges* tab) or for each entry (Entries → *Choose judges*). Judges give **scores and comments**.
+2. **First shortlist (Top N):** on the round results page the admin sets *Change Top N* (and waitlist); the system proposes, a person confirms and publishes. The Super Admin sees the shortlist in the shortlist manager.
+3. **Shortlisted teams are notified** ("You are shortlisted! Start building") with a **deadline** (the end of the Prototype submission window) and get the **demo form**: deployment link + how to use it (rich text).
+4. **The admin chooses the judges and sends the demo to them.** Judges give a **score and a comment** in My judging (the demo link is shown to them). The admin opens the round (*Open scores and shortlist*) and makes the **second shortlist** (Top N) → **finalists** (and eligible for the pilot form).
+5. **Presentation schedule:** each finalist picks a date and time **inside the final submission period** (Entry → *Schedule presentation*). The admin (Control centre → *Presentations*) **accepts it or suggests another time**; the team accepts the suggestion or proposes another. Everyone is notified at each step.
+6. **The presentation is given live (offline).** In *Results and awards* the admin enters each finalist's final presentation score, rank, winner / runner-up and a note, approves and publishes.
+7. **Final output in the system:** *Results & awards* lists winners with score, jury note and prize; each entrant sees their result under their entry's feedback.
 
 ## 2c. Prototype review and pilot review
 
