@@ -127,6 +127,14 @@ under review, clarification requested, shortlisted, on hold, Idea Bank, prototyp
   (Impact → To verify, or the KPI on the idea's Impact tab → *Choose who verifies this*). Nothing is assigned automatically. The chosen
   person sees it in **My judging** (Innovation judging), checks the number and verifies, adjusts or rejects it. Others can't.
 
+## 2c-1. Challenge flow, start to finish
+
+1. **Methodology submitted** → the Super Admin / DMD chooses one or many judges (challenge → *Judges* tab; stage *Methodology*). Entries are shared out automatically.
+2. **Judges score** the methodology. **Top N:** on the round results page the admin sets *Change Top N* (and waitlist), then the system proposes the shortlist; a person confirms and publishes.
+3. **Shortlisted candidates get the demo form** (demo link + how to use it) on their *Demo & pilot* page. The admin chooses the judges and sends it; judges **approve or reject** (or send back) with feedback. Approved → *Finalist* (and eligible for the pilot).
+4. **Final presentation is given live (offline).** Afterwards, in *Results and awards*, the admin enters each finalist's **final presentation score**, rank, winner / runner-up and a note (*Rank by presentation score* helps), approves and publishes.
+5. **Final output in the system:** *Results & awards* lists the winners with score, jury note and prize; each entrant sees their result and score under their entry's feedback. An approved demo counts as working evidence for a top award.
+
 ## 2c. Prototype review and pilot review
 
 - When a prototype is allowed, the candidate fills a short **prototype form**: the link and how to use it. They send it for review.

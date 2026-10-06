@@ -18,6 +18,8 @@ interface Winner {
   title: string | null;
   team_name: string | null;
   summary: string | null;
+  score?: number | null;
+  jury_note?: string | null;
   prize: { description: string; amount: number | null; currency_code: string; prize_type: string } | null;
 }
 interface ResultChallenge {
@@ -96,6 +98,12 @@ export default function ResultsPage() {
                           </>
                         ) : (
                           <p className="text-sm text-ink-muted">{t('results.summaryHidden')}</p>
+                        )}
+                        {(w.score != null || w.jury_note) && (
+                          <p className="text-sm text-ink">
+                            {w.score != null && <span className="tabular font-semibold">{t('finalStage.scoreShort', { score: num(w.score, 1) })}</span>}
+                            {w.jury_note && <span className="block text-ink-muted">{w.jury_note}</span>}
+                          </p>
                         )}
                         {w.prize && (
                           <p className="border-t border-line pt-3 text-sm text-ink">

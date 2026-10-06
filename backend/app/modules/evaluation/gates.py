@@ -91,8 +91,8 @@ class Subject:
             if not approved(self.db, "challenge_entry", entry.id, "PROTOTYPE"):
                 return "Opens when your demo is approved and you are eligible for the pilot."
             return None if entry.status_code in ("FINALIST", "FINAL_SUBMITTED", "JUDGED", "WINNER", "RUNNER_UP", "PARTICIPANT") else "The pilot is not open for this entry."
-        if not (entry.prototype_required or ch.prototype_policy in ("OPTIONAL", "REQUIRED_ALL")):
-            return "No prototype is needed for this entry."
+        if ch.prototype_policy == "NONE":
+            return "This challenge has no demo / prototype step."
         phase = csvc.phase_of(self.db, ch.id, "PROTOTYPE")
         if phase and utcnow() < phase.opens_at:
             return f"The prototype window opens on {csvc._fmt(phase.opens_at)}."
@@ -107,7 +107,7 @@ class Subject:
         if self.entity_type == "challenge_entry":
             if stage == "PILOT":
                 return approved(self.db, "challenge_entry", self.id, "PROTOTYPE")
-            return bool(self.obj.prototype_required or self.challenge.prototype_policy in ("OPTIONAL", "REQUIRED_ALL")) \
+            return self.challenge.prototype_policy != "NONE" \
                 and self.obj.status_code not in ("REGISTERED", "METHODOLOGY_SUBMITTED", "UNDER_REVIEW", "WITHDRAWN", "NO_SUBMISSION")
         state = self.obj.current_state_code
         after_prototype = ("SHORTLISTED", "PROTOTYPE", "DEMO_VALIDATION", "PILOT", "PRODUCTION", "IMPACT_VERIFIED", "SCALED")

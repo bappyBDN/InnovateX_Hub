@@ -1,0 +1,17 @@
+{
+  "finalStage": {
+    "editRule": "Change Top N",
+    "ruleTitle": "How many go to the next round?",
+    "ruleHelp": "Set this before the system proposes the shortlist. You can still override a candidate with a reason.",
+    "topN": "Top N candidates",
+    "topNHelp": "The highest-scoring entries are shortlisted.",
+    "waitlist": "Waitlist size",
+    "waitlistHelp": "Extra entries kept in reserve.",
+    "ruleSaved": "Saved",
+    "presentationScore": "Final presentation score (0–100)",
+    "presentationScoreHelp": "The score the panel gave at the live presentation. Shown with the final result.",
+    "scoreShort": "Final score {{score}} / 100",
+    "approvedDemo": "Approved demo",
+    "rankByScore": "Rank by presentation score"
+  }
+}

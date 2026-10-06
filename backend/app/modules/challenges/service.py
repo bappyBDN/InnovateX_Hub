@@ -346,7 +346,7 @@ def entry_journey(db: Session, entry: ChallengeEntry, ch: Challenge, phases: lis
         stage = {"code": code, "label": label, "date": iso(when), "note": None,
                  "state": "done" if i < cur else "current" if i == cur else "upcoming"}
         if code == "PROTOTYPE":
-            if ch.prototype_policy == "NONE" or (cur >= 4 and not entry.prototype_required and ch.prototype_policy != "OPTIONAL"):
+            if ch.prototype_policy == "NONE":
                 stage.update(state="skipped", note="Not required")
             elif cur < 4 and ch.prototype_policy == "PANEL_DECIDES":
                 stage["note"] = "Only if the panel asks"
@@ -396,9 +396,10 @@ def entry_next_step(db: Session, entry: ChallengeEntry, ch: Challenge, phases: l
         step.update(text="The panel asked a question. Reply so the review can continue.", action_label="Reply",
                     action_path=base, tone="warning")
     elif s in ("SHORTLISTED", "BUILDING"):
-        if entry.prototype_required and "PROTOTYPE" in by_type:
-            step.update(text=f"Build and submit your prototype by {_fmt(closes('PROTOTYPE'))}.", action_label="Open build plan",
-                        action_path=f"{base}/milestones", due_at=iso(closes("PROTOTYPE")), tone="success")
+        if ch.prototype_policy != "NONE" and "PROTOTYPE" in by_type:
+            step.update(text=f"Share your demo link and explain how to use it by {_fmt(closes('PROTOTYPE'))}. "
+                             "The innovation office then sends it to the judges.", action_label="Open demo form",
+                        action_path=f"{base}/prototype", due_at=iso(closes("PROTOTYPE")), tone="success")
         else:
             step.update(text=f"Prepare your final project by {_fmt(closes('FINAL_SUBMISSION'))}.", action_label="Open build plan",
                         action_path=f"{base}/milestones", due_at=iso(closes("FINAL_SUBMISSION")), tone="success")
@@ -435,7 +436,7 @@ def entry_card(db: Session, entry: ChallengeEntry, cu: CurrentUser | None = None
     out = {
         "id": entry.id, "code": entry.code, "title": entry.title, "summary": entry.summary,
         "entry_type": entry.entry_type, "status_code": entry.status_code, "registered_at": iso(entry.registered_at),
-        "prototype_required": entry.prototype_required, "final_rank": entry.final_rank,
+        "prototype_required": entry.prototype_required or ch.prototype_policy != "NONE", "final_rank": entry.final_rank,
         "challenge": {"id": ch.id, "slug": ch.slug, "code": ch.code, "title_i18n": ch.title_i18n,
                       "status_code": ch.status_code, "prototype_policy": ch.prototype_policy},
         "team": {"id": team.id, "name": team.name, "member_count": members} if team else None,

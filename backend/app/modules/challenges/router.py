@@ -215,7 +215,7 @@ def entry_detail(entry_id: str, cu: CurrentUser = Depends(get_current_user), db:
             return None
         required = True
         if kind == "PROTOTYPE":
-            required = entry.prototype_required or ch.prototype_policy in ("OPTIONAL", "REQUIRED_ALL")
+            required = ch.prototype_policy != "NONE"   # every shortlisted entry gets the demo form
         return {"type": kind, "path": f"/entries/{entry.id}/{path}", "status": s.status if s else "NOT_STARTED",
                 "submission_id": s.id if s else None, "version_no": s.current_version_no if s else 0,
                 "submitted_at": iso(s.submitted_at) if s else None, "completeness_pct": s.completeness_pct if s else 0,

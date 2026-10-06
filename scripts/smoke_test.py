@@ -271,6 +271,10 @@ for row in res["results"]:
         call("owner", "POST", f"/round-results/{row['id']}/resolve-discussion", {"resolution": "CHAIR_DECISION", "note": "Resolved by the chair."})
 res = call("owner", "GET", f"/review-rounds/{round2['id']}/results")
 assert res["can_propose"], res["propose_blockers"]
+n_now = res["rule"]["top_n"]
+call("judge1", "PATCH", f"/review-rounds/{round2['id']}/shortlist-rule", {"top_n": n_now}, expect=404, label="judges can't change the rule")
+call("owner", "PATCH", f"/review-rounds/{round2['id']}/shortlist-rule", {"top_n": 0}, expect=422, label="Top N is at least 1")
+assert call("owner", "PATCH", f"/review-rounds/{round2['id']}/shortlist-rule", {"top_n": n_now})["rule"]["top_n"] == n_now
 sl = call("owner", "POST", f"/review-rounds/{round2['id']}/shortlist/actions/propose")
 shortlist = call("owner", "GET", f"/shortlists/{sl['id']}")
 print("  C2 shortlist:", shortlist["counts"], shortlist["rule"]["text"])
@@ -335,6 +339,23 @@ eg2 = call("rahim", "PUT", f"/gates/challenge_entry/{r4['id']}/PILOT",
 call("admin", "POST", f"/gates/{eg2['id']}/send-for-review", {"user_ids": panel})
 call("admin", "POST", f"/gates/{eg2['id']}/decide", {"decision": "APPROVE", "note": "Results are clear and measured."})
 assert call("rahim", "GET", f"/entries/{r4['id']}")["status_code"] == "FINALIST"
+# Final stage: the finalist presents live; the admin records the panel's score and result, and it shows in the system.
+res4 = call("admin", "GET", f"/manage/challenges/{C4['id']}/results")
+row4 = next(x for x in res4["entries"] if x["entry_id"] == r4["id"])
+assert row4["has_working_evidence"] and row4["demo_status"] == "APPROVED", "an approved demo counts as working evidence"
+call("admin", "PUT", f"/manage/challenges/{C4['id']}/results/decisions",
+     {"decisions": [{"entry_id": r4["id"], "rank": 1, "result": "WINNER", "presentation_score": 140}]}, expect=422, label="score is 0-100")
+call("admin", "PUT", f"/manage/challenges/{C4['id']}/results/decisions",
+     {"decisions": [{"entry_id": r4["id"], "rank": 1, "result": "WINNER", "presentation_score": 91.5,
+                     "decision_note": "Clear live demo; handover time cut in half."}]})
+row4 = next(x for x in call("admin", "GET", f"/manage/challenges/{C4['id']}/results")["entries"] if x["entry_id"] == r4["id"])
+assert row4["decision"]["presentation_score"] == 91.5
+call("admin", "POST", f"/manage/challenges/{C4['id']}/results/actions/approve")
+call("admin", "POST", f"/manage/challenges/{C4['id']}/results/actions/publish")
+pub = next(c for c in call("rahim", "GET", "/results")["challenges"] if c["id"] == C4["id"])
+assert pub["winners"][0]["score"] == 91.5 and pub["winners"][0]["jury_note"], "the final output shows in the system"
+fbk = call("rahim", "GET", f"/entries/{r4['id']}/feedback")["items"]
+assert fbk and fbk[0]["decision_code"] == "WINNER" and fbk[0]["score_shared"] == 91.5, fbk
 jf = call("admin", "GET", f"/judge-feedback/challenge_entry/{r4['id']}")
 assert len(jf["gates"]) == 2 and jf["rounds"], "judge feedback shows scores and the demo and pilot decisions"
 omar4 = next(e for e in call("omar", "GET", "/me/entries")["items"] if e["challenge"]["id"] == C4["id"])
@@ -375,7 +396,7 @@ call("owner", "POST", f"/manage/challenges/{C5['id']}/results/actions/approve")
 call("owner", "POST", f"/manage/challenges/{C5['id']}/results/actions/publish")
 pub = call("anika", "GET", "/results")
 water = next(c for c in pub["challenges"] if c["id"] == C5["id"])
-assert len(water["winners"]) == 2 and len(pub["challenges"]) == 2, "only winners are listed"
+assert len(water["winners"]) == 2 and len(pub["challenges"]) == 3, "only winners are listed"
 winner_entry = ranked[0]["entry_id"]
 conv = call("owner", "POST", f"/entries/{winner_entry}/actions/convert-to-initiative")
 print("  winner converted to", conv["code"])

@@ -17,6 +17,7 @@ import {
   EmptyState,
   ErrorState,
   Field,
+  Input,
   PageHeader,
   PageSkeleton,
   Select,
@@ -308,6 +309,9 @@ export default function RoundResultsPage() {
           <div>
             <dt className="text-ink-muted">{t('rounds.rule')}</dt>
             <dd className="font-medium text-ink">{data.rule.text}</dd>
+            {data.can_manage && !isFinal && (!data.shortlist || data.shortlist.status === 'PROPOSED') && (
+              <RuleEditor roundId={roundId} rule={data.rule} onSaved={() => void qc.invalidateQueries({ queryKey: queryKeys.review.results(roundId) })} />
+            )}
           </div>
           <div>
             <dt className="text-ink-muted">{t('rounds.aggregation')}</dt>
@@ -460,5 +464,54 @@ export default function RoundResultsPage() {
         />
       )}
     </div>
+  );
+}
+
+/** The admin decides how many candidates go to the next round (Top N) before the system proposes the shortlist. */
+function RuleEditor({ roundId, rule, onSaved }: { roundId: string; rule: { top_n: number | null; waitlist_size: number | null }; onSaved: () => void }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [topN, setTopN] = useState(String(rule.top_n ?? ''));
+  const [wait, setWait] = useState(String(rule.waitlist_size ?? 0));
+  const save = useMutation({
+    mutationFn: () => api.patch(`/review-rounds/${roundId}/shortlist-rule`, { method: 'TOP_N', top_n: Number(topN), waitlist_size: Number(wait) || 0 }),
+    onSuccess: () => {
+      toast.success(t('finalStage.ruleSaved'));
+      setOpen(false);
+      onSaved();
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  return (
+    <>
+      <Button size="sm" variant="ghost" className="mt-1" onClick={() => setOpen(true)}>
+        {t('finalStage.editRule')}
+      </Button>
+      <Dialog
+        open={open}
+        onOpenChange={setOpen}
+        title={t('finalStage.ruleTitle')}
+        description={t('finalStage.ruleHelp')}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button loading={save.isPending} disabled={!(Number(topN) >= 1)} onClick={() => save.mutate()}>
+              {t('common.save')}
+            </Button>
+          </>
+        }
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t('finalStage.topN')} required help={t('finalStage.topNHelp')}>
+            <Input type="number" min={1} value={topN} onChange={(e) => setTopN(e.target.value)} />
+          </Field>
+          <Field label={t('finalStage.waitlist')} help={t('finalStage.waitlistHelp')}>
+            <Input type="number" min={0} value={wait} onChange={(e) => setWait(e.target.value)} />
+          </Field>
+        </div>
+      </Dialog>
+    </>
   );
 }

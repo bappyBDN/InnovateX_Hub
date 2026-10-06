@@ -37,6 +37,7 @@ interface DecisionState {
   rank: number;
   award_category_id: string;
   decision_note: string;
+  presentation_score: string;
 }
 interface ResultEntry {
   entry_id: string;
@@ -49,8 +50,10 @@ interface ResultEntry {
   reviews_completed: number;
   reviews_expected: number;
   has_working_evidence: boolean;
+  demo_status?: string | null;
+  demo_link?: string | null;
   converted_initiative_code?: string | null;
-  decision: { rank: number; result: 'WINNER' | 'RUNNER_UP'; award_category_id: string | null; decision_note: string | null } | null;
+  decision: { rank: number; result: 'WINNER' | 'RUNNER_UP'; award_category_id: string | null; decision_note: string | null; presentation_score?: number | null } | null;
 }
 interface Prize {
   rank_from: number;
@@ -79,6 +82,7 @@ const blank = (e: ResultEntry, i: number): DecisionState => ({
   rank: e.decision?.rank ?? e.jury_rank ?? i + 1,
   award_category_id: e.decision?.award_category_id ?? '',
   decision_note: e.decision?.decision_note ?? '',
+  presentation_score: e.decision?.presentation_score != null ? String(e.decision.presentation_score) : '',
 });
 
 export default function ResultsDecisionPage() {
@@ -116,6 +120,7 @@ export default function ResultsDecisionPage() {
             result: d.result,
             award_category_id: d.award_category_id || null,
             decision_note: d.decision_note.trim() || null,
+            presentation_score: d.presentation_score.trim() === '' ? null : Number(d.presentation_score),
           })),
       }),
     onSuccess: () => {
@@ -184,6 +189,7 @@ export default function ResultsDecisionPage() {
             </div>
             <p className="mt-2 font-semibold text-ink">{e.title}</p>
             <p className="text-sm text-ink-muted">{e.entrant}</p>
+            {d.presentation_score.trim() !== '' && <p className="tabular text-sm font-medium text-ink">{t('finalStage.scoreShort', { score: d.presentation_score })}</p>}
             {prize && (
               <p className="mt-1 text-sm text-ink">
                 {prize.description}
@@ -230,6 +236,23 @@ export default function ResultsDecisionPage() {
           data.can_manage &&
           !published && (
             <>
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  setForm((f) => {
+                    const ordered = Object.entries(f)
+                      .filter(([, d]) => d.presentation_score.trim() !== '')
+                      .sort((a, b) => Number(b[1].presentation_score) - Number(a[1].presentation_score));
+                    const next = { ...f };
+                    ordered.forEach(([id, d], i) => {
+                      next[id] = { ...d, rank: i + 1, result: d.result || (i === 0 ? 'WINNER' : 'RUNNER_UP') };
+                    });
+                    return next;
+                  })
+                }
+              >
+                {t('finalStage.rankByScore')}
+              </Button>
               <Button
                 variant={data.status === 'NONE' || dirty ? 'primary' : 'secondary'}
                 loading={save.isPending}
@@ -345,6 +368,14 @@ export default function ResultsDecisionPage() {
                       </p>
                     </div>
                   </div>
+                  {e.demo_link && (
+                    <p className="mt-2 text-sm">
+                      <span className="text-ink-muted">{t('finalStage.approvedDemo')}: </span>
+                      <a href={e.demo_link} target="_blank" rel="noopener noreferrer" className="break-all font-medium text-primary underline">
+                        {e.demo_link}
+                      </a>
+                    </p>
+                  )}
                   <div className="mt-2">
                     {e.has_working_evidence ? (
                       <Badge tone="success" icon={<CheckCircle2 className="h-3.5 w-3.5" aria-hidden />}>
@@ -389,7 +420,17 @@ export default function ResultsDecisionPage() {
                               ]}
                             />
                           </Field>
-                          <Field label={t('resultsDecision.note')}>
+                          <Field label={t('finalStage.presentationScore')} help={t('finalStage.presentationScoreHelp')}>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step="0.1"
+                              value={d.presentation_score}
+                              onChange={(ev) => update(e.entry_id, { presentation_score: ev.target.value })}
+                            />
+                          </Field>
+                          <Field label={t('resultsDecision.note')} className="sm:col-span-2">
                             <Input
                               value={d.decision_note}
                               placeholder={t('resultsDecision.notePlaceholder')}
@@ -406,6 +447,9 @@ export default function ResultsDecisionPage() {
                           {e.decision.result === 'WINNER' ? t('resultsDecision.winner') : t('resultsDecision.runnerUp')} · #{e.decision.rank}
                         </Badge>{' '}
                         {e.decision.award_category_id && categoryName(e.decision.award_category_id)}
+                        {e.decision.presentation_score != null && (
+                          <span className="tabular ml-2 font-semibold">{t('finalStage.scoreShort', { score: num(e.decision.presentation_score, 1) })}</span>
+                        )}
                         {e.decision.decision_note && <span className="mt-1 block text-ink-muted">{e.decision.decision_note}</span>}
                       </p>
                     )

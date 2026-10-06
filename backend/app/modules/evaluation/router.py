@@ -756,3 +756,33 @@ def challenge_judge_feedback(challenge_id: str, cu: CurrentUser = Depends(requir
                      "summary": fb["summary"],
                      "gates": [{"stage": g["stage"], "round_no": g["round_no"], "status": g["status"]} for g in fb["gates"]]})
     return {"challenge": {"id": ch.id, "title_i18n": ch.title_i18n}, "items": rows}
+
+
+class RuleIn(BaseModel):
+    method: str | None = None            # TOP_N, THRESHOLD, TOP_N_WITH_THRESHOLD, TOP_PERCENT, MANUAL
+    top_n: int | None = None
+    min_score: float | None = None
+    waitlist_size: int | None = None
+
+
+@router.patch("/review-rounds/{round_id}/shortlist-rule")
+def edit_shortlist_rule(round_id: str, body: RuleIn, request: Request, cu: CurrentUser = Depends(require_roles(*MANAGERS)),
+                        db: Session = Depends(get_db)):
+    """The admin sets how many candidates go to the next round (Top N) before the system proposes the shortlist."""
+    rnd = _round_or_404(db, round_id)
+    done = db.scalar(select(Shortlist).where(Shortlist.review_round_id == rnd.id, Shortlist.status.in_(["CONFIRMED", "PUBLISHED"])))
+    if done:
+        raise DomainError("SHORTLIST_CONFIRMED", "The shortlist is already confirmed, so the rule can't change.", 409)
+    if body.method and body.method not in ("TOP_N", "THRESHOLD", "TOP_N_WITH_THRESHOLD", "TOP_PERCENT", "MANUAL"):
+        raise DomainError("INVALID_METHOD", "Choose a valid shortlist method.", 422)
+    if body.top_n is not None and body.top_n < 1:
+        raise DomainError("INVALID_TOP_N", "Top N must be at least 1.", 422)
+    rule = svc.default_rule(db, rnd)
+    before = svc.rule_text(rule)
+    for key, value in body.model_dump(exclude_unset=True).items():
+        setattr(rule, key, value)
+    audit(db, cu.id, "CONFIG_CHANGE", "review_round", rnd.id, f"Changed the shortlist rule: {before} → {svc.rule_text(rule)}", {},
+          request.state.request_id)
+    db.commit()
+    return {"rule": {"text": svc.rule_text(rule), "method": rule.method, "top_n": rule.top_n, "min_score": rule.min_score,
+                     "waitlist_size": rule.waitlist_size}}

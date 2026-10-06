@@ -16,6 +16,7 @@ from app.modules.challenges.models import Challenge, ChallengeEntry, ChallengePr
 from app.modules.delivery.models import (AwardCategory, AwardDecision, DemoEvent, DemoSlot, Kpi, KpiMeasurement, KpiVerifierAssignment,
                                          Milestone, ProgressUpdate, ReusableAsset, Reward)
 from app.modules.evaluation import service as esvc
+from app.modules.evaluation.gates import latest as latest_gate
 from app.modules.evaluation.models import Feedback, ReviewRound, RoundResult
 from app.modules.identity.models import User
 from app.modules.initiatives.models import Initiative, InitiativeMember
@@ -480,6 +481,16 @@ def _final_round(db: Session, challenge_id: str) -> ReviewRound | None:
     return csvc.round_of(db, challenge_id, "FINAL_JURY")
 
 
+def _has_evidence(db: Session, entry: ChallengeEntry) -> bool:
+    """RB-05: a working solution was submitted, or its demo (or pilot) was approved by the judges."""
+    from app.modules.evaluation.gates import approved
+    if db.scalar(select(EntrySubmission.id).where(EntrySubmission.challenge_entry_id == entry.id,
+                                                  EntrySubmission.submission_type.in_(["FINAL_PROJECT", "PROTOTYPE"]),
+                                                  EntrySubmission.status.in_(["SUBMITTED", "LOCKED"]))):
+        return True
+    return approved(db, "challenge_entry", entry.id, "PROTOTYPE") or approved(db, "challenge_entry", entry.id, "PILOT")
+
+
 @router.get("/manage/challenges/{challenge_id}/results")
 def results_workspace(challenge_id: str, cu: CurrentUser = Depends(require_roles(*OVERSEERS)), db: Session = Depends(get_db)):
     ch = db.get(Challenge, challenge_id)
@@ -494,18 +505,18 @@ def results_workspace(challenge_id: str, cu: CurrentUser = Depends(require_roles
             ["FINALIST", "FINAL_SUBMITTED", "JUDGED", "WINNER", "RUNNER_UP", "PARTICIPANT", "CONVERTED_TO_INITIATIVE"]))).all():
         r, d = results.get(e.id), decisions.get(e.id)
         team = db.get(Team, e.team_id) if e.team_id else None
-        final = db.scalar(select(EntrySubmission).where(EntrySubmission.challenge_entry_id == e.id,
-                                                        EntrySubmission.submission_type.in_(["FINAL_PROJECT", "PROTOTYPE"]),
-                                                        EntrySubmission.status.in_(["SUBMITTED", "LOCKED"])))
+        demo = latest_gate(db, "challenge_entry", e.id, "PROTOTYPE")
         rows.append({"entry_id": e.id, "code": e.code, "title": e.title, "status_code": e.status_code,
                      "entrant": team.name if team else (user_brief(db, e.lead_user_id) or {}).get("full_name"),
                      "jury_score": r.final_score if r else None, "jury_rank": r.rank if r else None,
                      "reviews_completed": r.reviews_completed if r else 0, "reviews_expected": r.reviews_expected if r else 0,
-                     "has_working_evidence": bool(final),
+                     "has_working_evidence": _has_evidence(db, e),
+                     "demo_status": demo.status if demo else None,
+                     "demo_link": (demo.content or {}).get("link") if demo and demo.status == "APPROVED" else None,
                      "converted_initiative_code": (db.get(Initiative, e.converted_initiative_id).code
                                                    if e.converted_initiative_id else None),
                      "decision": {"rank": d.rank, "result": d.result, "award_category_id": d.award_category_id,
-                                  "decision_note": d.decision_note} if d else None})
+                                  "decision_note": d.decision_note, "presentation_score": d.jury_score} if d else None})
     rows.sort(key=lambda r: (r["jury_rank"] is None, r["jury_rank"] or 0))
     pending = sum(r["reviews_expected"] - r["reviews_completed"] for r in rows)
     status = "PUBLISHED" if ch.results_published_at else "APPROVED" if ch.results_approved_at else "DRAFT" if decisions else "NONE"
@@ -526,6 +537,7 @@ def results_workspace(challenge_id: str, cu: CurrentUser = Depends(require_roles
 
 class DecisionIn(BaseModel):
     entry_id: str
+    presentation_score: float | None = None   # score the panel gave at the live presentation (0-100)
     rank: int
     result: str = "WINNER"       # WINNER or RUNNER_UP
     award_category_id: str | None = None
@@ -553,10 +565,9 @@ def save_decisions(challenge_id: str, body: DecisionsIn, request: Request, cu: C
         entry = db.get(ChallengeEntry, d.entry_id)
         if not entry or entry.challenge_id != ch.id:
             raise not_found("Entry")
-        evidence = db.scalar(select(EntrySubmission.id).where(EntrySubmission.challenge_entry_id == entry.id,
-                                                              EntrySubmission.submission_type.in_(["FINAL_PROJECT", "PROTOTYPE"]),
-                                                              EntrySubmission.status.in_(["SUBMITTED", "LOCKED"])))
-        if d.result == "WINNER" and not evidence:   # RB-05
+        if d.presentation_score is not None and not 0 <= d.presentation_score <= 100:
+            raise DomainError("SCORE_RANGE", "The presentation score is between 0 and 100.", 422)
+        if d.result == "WINNER" and not _has_evidence(db, entry):   # RB-05
             raise DomainError("WORKING_EVIDENCE_REQUIRED", f"{entry.code} has no working solution submitted. "
                                                            "A top award needs working evidence.", 409)
     for old in db.scalars(select(AwardDecision).where(AwardDecision.challenge_id == ch.id)).all():
@@ -564,7 +575,8 @@ def save_decisions(challenge_id: str, body: DecisionsIn, request: Request, cu: C
     for d in body.decisions:
         db.add(AwardDecision(challenge_id=ch.id, award_category_id=d.award_category_id, entity_type="challenge_entry",
                              entity_id=d.entry_id, rank=d.rank, result=d.result, decision_note=d.decision_note,
-                             jury_score=scores.get(d.entry_id), publication_status="DRAFT", created_by=cu.id))
+                             jury_score=d.presentation_score if d.presentation_score is not None else scores.get(d.entry_id),
+                             publication_status="DRAFT", created_by=cu.id))
     ch.results_approved_by = ch.results_approved_at = None
     record_history(db, "challenge", ch.id, ch.status_code, "RESULTS_PENDING_APPROVAL", "RECORD_JURY_DECISION", cu.id)
     ch.status_code = "RESULTS_PENDING_APPROVAL"
@@ -622,6 +634,7 @@ def results_action(challenge_id: str, action: str, request: Request, cu: Current
             continue
         record_history(db, "challenge_entry", entry.id, entry.status_code, new, "RESULTS_PUBLISHED", cu.id)
         entry.status_code = new
+        fb = None
         if rnd:
             res = db.scalar(select(RoundResult).where(RoundResult.review_round_id == rnd.id, RoundResult.entity_id == entry.id))
             fb = db.scalar(select(Feedback).where(Feedback.review_round_id == rnd.id, Feedback.entity_id == entry.id))
@@ -629,12 +642,20 @@ def results_action(challenge_id: str, action: str, request: Request, cu: Current
                 esvc.ensure_feedback_drafts(db, rnd, cu.id)
                 fb = db.scalar(select(Feedback).where(Feedback.review_round_id == rnd.id, Feedback.entity_id == entry.id))
             if fb:
+                if d and d.jury_score is not None:
+                    fb.score_shared = d.jury_score      # the panel's final (live presentation) score
                 fb.decision_code, fb.published_at = new, now
                 fb.decision_reason = fb.decision_reason or (d.decision_note if d else None)
                 fb.next_steps = fb.next_steps or ("Your solution can now continue as an initiative towards pilot and production."
                                                   if d else "Thank you for presenting at Demo Day. Your work stays on record.")
             if res:
                 res.is_frozen = True
+        if not fb:      # the final presentation was given live: the entrant still gets the result in the system
+            db.add(Feedback(entity_type="challenge_entry", entity_id=entry.id, decision_code=new, written_by=cu.id,
+                            strengths="", improvements="", published_at=now, score_shared=d.jury_score if d else None,
+                            decision_reason=(d.decision_note if d else None), review_round_id=rnd.id if rnd else None,
+                            next_steps=("Your solution can now continue as an initiative towards pilot and production."
+                                        if d else "Thank you for presenting at Demo Day. Your work stays on record.")))
         publish_event(db, "AWARD_PUBLISHED", "challenge_entry", entry.id, cu.id, users=csvc.notify_entry(db, entry),
                       title=f"Results are out: {en(ch.title_i18n)}",
                       body={"WINNER": "Congratulations — your entry won.", "RUNNER_UP": "Congratulations — your entry is a runner-up."}
@@ -703,6 +724,7 @@ def published_results(cu: CurrentUser = Depends(get_current_user), db: Session =
             team = db.get(Team, entry.team_id) if entry.team_id else None
             prize = next((p for p in prizes if p.rank_from <= d.rank <= p.rank_to), None)
             winners.append({"rank": d.rank, "result": d.result, "award_category": categories.get(d.award_category_id),
+                            "score": d.jury_score, "jury_note": d.decision_note,
                             "title": entry.title if ch.publish_winner_summaries else None,
                             "team_name": (team.name if team else (user_brief(db, entry.lead_user_id) or {}).get("full_name"))
                             if ch.publish_winner_summaries else None,
