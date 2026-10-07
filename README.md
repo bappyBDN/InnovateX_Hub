@@ -173,7 +173,7 @@ One file in the project root is read by Docker Compose, the backend and the fron
 | `SIGNUP_ENABLED`, `INVITATION_EXPIRY_DAYS` | Backend | Defaults for sign-up and invitation links |
 | `JWT_SECRET`, `JWT_EXPIRE_MINUTES` | Backend | Sign-in tokens — **change the secret** |
 | `DEMO_MODE`, `SEED_ON_START`, `DEMO_PASSWORD` | Backend | Demo accounts and data |
-| `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM` | Backend | Email server (empty host = log only) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURITY`, `MAIL_FROM`, `MAIL_FROM_NAME` | Backend | Email server and the mailbox that signs in to it (empty host = log only). Check with `python -m app.send_test_email you@anwargroup.net` |
 | `OUTBOX_POLL_SECONDS` | Backend | How often the worker sends notifications |
 
 If you change a port, change the matching URL too (for example `FRONTEND_PORT=3000` → `FRONTEND_URL`, `CORS_ORIGINS`), then

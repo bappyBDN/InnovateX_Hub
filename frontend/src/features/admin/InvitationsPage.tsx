@@ -147,7 +147,7 @@ export default function InvitationsPage() {
       >
         {sent && (
           <div className="space-y-3">
-            {sent.email_status === 'FAILED' ? <Callout tone="warning" title={t('adminPanel.invite.emailFailed')} /> : <p className="text-sm text-ink-muted">{t('adminPanel.invite.sentBody')}</p>}
+            {sent.email_status !== 'SENT' ? <Callout tone="warning" title={t('adminPanel.invite.emailFailed')} /> : <p className="text-sm text-ink-muted">{t('adminPanel.invite.sentBody')}</p>}
             <div className="flex flex-wrap items-center gap-2">
               <Input readOnly value={sent.invite_url ?? ''} onFocus={(e) => e.target.select()} aria-label={t('adminPanel.invite.copy')} className="min-w-0 flex-1" />
               <Button

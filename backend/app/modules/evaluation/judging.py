@@ -23,7 +23,7 @@ from app.modules.evaluation.models import (JudgeInvite, Panel, PanelMember, Revi
 from app.modules.identity.models import User, UserInvitation
 from app.modules.initiatives.models import Initiative
 from app.modules.notifications.models import NotificationDelivery
-from app.modules.notifications.service import _attempt
+from app.modules.notifications.service import _attempt, judge_invite_text
 from app.shared.models.base import iso, utcnow
 from app.shared.util import en, user_brief
 
@@ -418,12 +418,10 @@ def invite_by_email(db: Session, emails: list[str], scope_type: str, scope_id: s
         db.add(JudgeInvite(email=email, invitation_id=inv.id, scope_type=scope_type, scope_id=scope_id, stages=stages,
                            due_days=due_days, invited_by=inviter.id, status="PENDING", created_by=inviter.id))
         link = f"{settings.frontend_url}/signup?invite={token}"
-        scope_line = f"You will judge: {stage_text(stages)}.\n\n" if scope_type == "challenge" else ""
-        body = (f"Hello,\n\n{inviter.full_name} invited you to be a judge for {what} on {settings.app_name}.\n\n{scope_line}"
-                + (f"{message.strip()}\n\n" if message and message.strip() else "")
-                + f"Create your account here (the link works once and expires on {expires:%d %b %Y}):\n{link}\n")
+        subject, body = judge_invite_text(inviter.full_name, what, stage_text(stages) if scope_type == "challenge" else None,
+                                          message, f"{expires:%d %b %Y}", link)
         d = NotificationDelivery(event_type="JUDGE_INVITED", recipient_address=email, channel="EMAIL", template_code="JUDGE_INVITE",
-                                 rendered_subject=f"[InnovateX] You are invited to be a judge: {what}", rendered_body=body, attempts=0)
+                                 rendered_subject=subject, rendered_body=body, attempts=0)
         _attempt(d)
         db.add(d)
         # Without an email server the message is only logged, so say so: the admin then sends the link themselves.

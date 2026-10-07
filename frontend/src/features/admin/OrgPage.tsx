@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Building2, Pencil, Plus } from 'lucide-react';
+import { Building2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/api/client';
@@ -8,6 +8,7 @@ import {
   Badge,
   Button,
   Card,
+  ConfirmDialog,
   Dialog,
   EmptyState,
   ErrorState,
@@ -37,7 +38,7 @@ interface Unit {
 const TYPES = ['GROUP', 'COMPANY', 'BUSINESS', 'FUNCTION', 'DEPARTMENT', 'TEAM', 'PROJECT'];
 const CHILD_TYPE: Record<string, string> = {
   GROUP: 'COMPANY',
-  COMPANY: 'FUNCTION',
+  COMPANY: 'DEPARTMENT',
   BUSINESS: 'FUNCTION',
   FUNCTION: 'DEPARTMENT',
   DEPARTMENT: 'TEAM',
@@ -49,6 +50,12 @@ type Editing = { mode: 'add'; parent: Unit | null } | { mode: 'edit'; unit: Unit
 export default function OrgPage() {
   const { t } = useTranslation();
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [deleting, setDeleting] = useState<Unit | null>(null);
+  const remove = useAdminMutation((id: string) => api.del(`/org-units/${id}`), {
+    success: t('admin.org.deleted'),
+    invalidate: [queryKeys.masterdata.orgUnits],
+    onDone: () => setDeleting(null),
+  });
   const units = useQuery({ queryKey: queryKeys.masterdata.orgUnits, queryFn: () => api.get<Unit[]>('/org-units') });
 
   // The API returns units ordered by path, so depth = number of dots in the path.
@@ -106,6 +113,9 @@ export default function OrgPage() {
                   <Button size="sm" variant="ghost" icon={<Pencil className="h-4 w-4" aria-hidden />} onClick={() => setEditing({ mode: 'edit', unit: u })}>
                     {t('common.edit')}
                   </Button>
+                  <Button size="sm" variant="ghost" icon={<Trash2 className="h-4 w-4" aria-hidden />} onClick={() => setDeleting(u)}>
+                    {t('common.delete')}
+                  </Button>
                 </div>
               </li>
             ))}
@@ -114,6 +124,16 @@ export default function OrgPage() {
       )}
 
       {editing && <UnitDialog editing={editing} onClose={() => setEditing(null)} />}
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title={t('admin.org.deleteTitle', { name: deleting?.name ?? '' })}
+        description={t('admin.org.deleteBody')}
+        confirmLabel={t('common.delete')}
+        variant="danger"
+        loading={remove.isPending}
+        onConfirm={() => deleting && remove.mutate(deleting.id)}
+      />
     </div>
   );
 }

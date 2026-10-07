@@ -16,9 +16,9 @@ from app.core.permissions import CurrentUser, load_roles, require_roles
 from app.core.security import create_access_token, hash_password, sha256
 from app.modules.identity.models import (Organization, OrgUnit, Permission, Role, RolePermission, User, UserInvitation,
                                          UserRoleAssignment)
-from app.modules.identity.sbu import is_sbu, sbu_units
+from app.modules.identity.sbu import department_units, is_sbu, sbu_of, sbu_units
 from app.modules.notifications.models import NotificationDelivery
-from app.modules.notifications.service import _attempt
+from app.modules.notifications.service import _attempt, mail_ready, role_invite_text
 from app.shared.models.base import iso, utcnow
 from app.shared.util import en, setting, user_brief
 
@@ -56,6 +56,8 @@ def signup_options(invite: str = "", db: Session = Depends(get_db)):
     out = {"signup_enabled": bool(setting(db, "signup_enabled", settings.signup_enabled)),
            "allowed_domains": setting(db, "signup_allowed_domains", "") or "",
            "org_units": [{"id": u.id, "name": en(u.name_i18n), "unit_type": u.unit_type, "depth": 0} for u in units],
+           "departments": [{"id": d.id, "name": en(d.name_i18n), "sbu_id": s.id, "depth": d.path.count(".") - s.path.count(".") - 1}
+                           for d, s in department_units(db)],
            "invitation": None}
     if invite:
         inv = _invitation(db, invite)
@@ -73,8 +75,8 @@ class SignupIn(BaseModel):
     email: str
     password: str
     job_title: str | None = None
-    department: str | None = None
-    org_unit_id: str | None = None
+    org_unit_id: str | None = None       # the SBU
+    department_id: str | None = None     # a unit under that SBU
     employee_no: str | None = None
     phone: str | None = None
     invite_token: str | None = None
@@ -107,14 +109,17 @@ def signup(body: SignupIn, request: Request, db: Session = Depends(get_db)):
     unit = db.get(OrgUnit, body.org_unit_id) if body.org_unit_id else None
     if body.org_unit_id and not (is_sbu(unit) and unit.is_active):
         errors["org_unit_id"] = "Choose an SBU from the list."
+    dept = db.get(OrgUnit, body.department_id) if body.department_id else None
+    if body.department_id and not (dept and dept.is_active and unit and (sbu_of(db, dept) or dept).id == unit.id and dept.id != unit.id):
+        errors["department_id"] = "Choose a department of your SBU."
     if errors:
         raise DomainError("VALIDATION_ERROR", "Some fields need attention.", 422, {"fields": errors})
     if db.scalar(select(User.id).where(func.lower(User.email) == email)):
         raise DomainError("EMAIL_TAKEN", "An account with this email already exists. Sign in instead.", 409)
     org = db.scalar(select(Organization.id))
     user = User(organization_id=org, full_name=body.full_name.strip(), email=email, password_hash=hash_password(body.password),
-                job_title=(body.job_title or "").strip() or None, department=(body.department or "").strip() or None,
-                primary_org_unit_id=unit.id if unit else None, employee_no=employee_no, phone=body.phone, grade=None,
+                job_title=(body.job_title or "").strip() or None,
+                primary_org_unit_id=(dept or unit).id if unit else None, employee_no=employee_no, phone=body.phone, grade=None,
                 joined_on=utcnow().date(), has_corporate_login=True, is_active=True, last_login_at=utcnow())
     db.add(user)
     db.flush()
@@ -156,14 +161,12 @@ def _inv_row(db: Session, inv: UserInvitation) -> dict:
 def _send_invite(db: Session, inv: UserInvitation, token: str, inviter: str) -> tuple[str, str]:
     link = f"{settings.frontend_url}/signup?invite={token}"
     roles = ", ".join(_invited_as(db, inv)) or "a member"
-    body = (f"Hello{' ' + inv.full_name if inv.full_name else ''},\n\n{inviter} invited you to join {settings.app_name} as: {roles}.\n\n"
-            + (f"{inv.message}\n\n" if inv.message else "")
-            + f"Create your account here (the link works once and expires on {inv.expires_at:%d %b %Y}):\n{link}\n")
+    subject, body = role_invite_text(inviter, inv.full_name, roles, inv.message, f"{inv.expires_at:%d %b %Y}", link)
     d = NotificationDelivery(event_type="USER_INVITED", recipient_address=inv.email, channel="EMAIL", template_code="INVITE",
-                             rendered_subject=f"[InnovateX] You are invited as {roles}", rendered_body=body, attempts=0)
+                             rendered_subject=subject, rendered_body=body, attempts=0)
     _attempt(d)
     db.add(d)
-    return link, d.status
+    return link, d.status if mail_ready() else "NOT_SET_UP"
 
 
 class InviteIn(BaseModel):

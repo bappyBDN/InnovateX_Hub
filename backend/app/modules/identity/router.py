@@ -18,7 +18,7 @@ from app.modules.identity.models import OrgUnit, Role, User, UserRoleAssignment
 from app.modules.identity.sbu import is_sbu, sbu_of
 from app.modules.masterdata.models import Skill, UserSkill
 from app.modules.notifications.models import InAppNotification
-from app.shared.models.base import row, utcnow
+from app.shared.models.base import Base, row, utcnow
 from app.shared.util import en, user_brief
 
 router = APIRouter(tags=["identity"])
@@ -41,7 +41,8 @@ def _me(db: Session, cu: CurrentUser) -> dict:
         "id": u.id, "full_name": u.full_name, "email": u.email, "job_title": u.job_title, "locale": u.locale,
         "grade": u.grade, "employee_no": u.employee_no,
         "org_unit": {"id": unit.id, "name": en(unit.name_i18n), "path": unit.path} if unit else None,
-        "sbu": {"id": sbu.id, "name": en(sbu.name_i18n)} if sbu else None, "department": u.department,
+        "sbu": {"id": sbu.id, "name": en(sbu.name_i18n)} if sbu else None,
+        "department": en(unit.name_i18n) if unit and sbu and unit.id != sbu.id else None,
         "roles": sorted(cu.roles), "permissions": sorted(cu.perms), "is_judge": _is_judge(db, cu),
         "teams": [{"id": t.id, "name": t.name, "role": role, "challenge_id": t.challenge_id} for t, role in teams],
         "feature_flags": {f.code: f.is_enabled for f in db.scalars(select(FeatureFlag)).all()},
@@ -295,3 +296,46 @@ def update_org_unit(unit_id: str, body: OrgUnitIn, request: Request,
           {"name": [before, body.name]}, request.state.request_id)
     db.commit()
     return _unit(unit, db)
+
+
+def _unit_usage(db: Session, unit: OrgUnit) -> list[str]:
+    """What still points at this unit, in plain words. Empty when it is safe to delete."""
+    used = []
+    children = db.scalar(select(func.count()).select_from(OrgUnit).where(OrgUnit.parent_id == unit.id)) or 0
+    if children:
+        used.append(f"{children} unit{'s' if children != 1 else ''} under it")
+    people = db.scalar(select(func.count()).select_from(User).where(User.primary_org_unit_id == unit.id)) or 0
+    if people:
+        used.append(f"{people} {'people' if people != 1 else 'person'}")
+    records = 0
+    for table in Base.metadata.sorted_tables:       # every record carries the unit it belongs to
+        if table.name == "users":
+            continue
+        for name in ("org_unit_id", "owner_org_unit_id", "scope_id"):
+            if name in table.c:
+                records += db.scalar(select(func.count()).select_from(table).where(table.c[name] == unit.id)) or 0
+    from app.modules.challenges.models import ChallengeEligibilityRule
+    records += sum(1 for r in db.scalars(select(ChallengeEligibilityRule).where(ChallengeEligibilityRule.rule_type == "ORG_UNIT")).all()
+                   if (r.rule_value or {}).get("org_unit_id") == unit.id)
+    if records:
+        used.append(f"{records} record{'s' if records != 1 else ''} (ideas, challenges, entries or roles)")
+    return used
+
+
+@router.delete("/org-units/{unit_id}")
+def delete_org_unit(unit_id: str, request: Request, cu: CurrentUser = Depends(require_roles("SUPER_ADMIN", "ADMIN")),
+                    db: Session = Depends(get_db)):
+    """Delete a unit nothing uses. A unit with people, sub-units or records is kept: switch it to inactive instead."""
+    unit = db.get(OrgUnit, unit_id)
+    if not unit:
+        raise not_found("Org unit")
+    used = _unit_usage(db, unit)
+    name = en(unit.name_i18n)
+    if used:
+        raise DomainError("ORG_UNIT_IN_USE", f"{name} can't be deleted because it still has " + ", ".join(used)
+                          + ". Move or remove those first, or switch it to inactive.", 409)
+    audit(db, cu.id, "CONFIG_CHANGE", "org_unit", unit.id, f"Deleted org unit {name}",
+          {"name": [name, None], "code": [unit.code, None], "unit_type": [unit.unit_type, None]}, request.state.request_id)
+    db.delete(unit)
+    db.commit()
+    return {"ok": True}

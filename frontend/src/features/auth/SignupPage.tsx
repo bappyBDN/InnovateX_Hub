@@ -11,6 +11,7 @@ interface SignupOptions {
   signup_enabled: boolean;
   allowed_domains: string;
   org_units: { id: string; name: string; unit_type: string; depth: number }[];
+  departments: { id: string; name: string; sbu_id: string; depth: number }[];
   invitation: null | {
     valid: boolean;
     message?: string;
@@ -36,7 +37,7 @@ export default function SignupPage() {
     queryFn: () => api.get<SignupOptions>('/auth/signup-options', invite ? { invite } : undefined),
   });
 
-  const [form, setForm] = useState({ full_name: '', email: '', password: '', confirm: '', job_title: '', department: '', org_unit_id: '', employee_no: '' });
+  const [form, setForm] = useState({ full_name: '', email: '', password: '', confirm: '', job_title: '', department_id: '', org_unit_id: '', employee_no: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -70,7 +71,7 @@ export default function SignupPage() {
           email: form.email,
           password: form.password,
           job_title: form.job_title || null,
-          department: form.department.trim() || null,
+          department_id: form.department_id || null,
           org_unit_id: form.org_unit_id || null,
           employee_no: form.employee_no.trim(),
           invite_token: invited ? invite : null,
@@ -86,6 +87,9 @@ export default function SignupPage() {
       setBusy(false);
     }
   };
+
+  // Departments belong to an SBU, so the list follows the SBU that is chosen.
+  const departments = (options.data?.departments ?? []).filter((d) => d.sbu_id === form.org_unit_id);
 
   const closed = options.data && !options.data.signup_enabled && !invited;
 
@@ -161,13 +165,19 @@ export default function SignupPage() {
                     <Field label={t('signup.orgUnit')} hint={t('signup.optional')} error={errors.org_unit_id}>
                       <Select
                         value={form.org_unit_id}
-                        onChange={set('org_unit_id')}
+                        onChange={(e) => setForm((f) => ({ ...f, org_unit_id: e.target.value, department_id: '' }))}
                         placeholder={t('signup.orgUnitPlaceholder')}
                         options={(options.data?.org_units ?? []).map((u) => ({ value: u.id, label: u.name }))}
                       />
                     </Field>
-                    <Field label={t('signup.department')} hint={t('signup.optional')} error={errors.department}>
-                      <Input value={form.department} onChange={set('department')} />
+                    <Field label={t('signup.department')} hint={t('signup.optional')} error={errors.department_id}>
+                      <Select
+                        value={form.department_id}
+                        onChange={set('department_id')}
+                        disabled={!departments.length}
+                        placeholder={!form.org_unit_id ? t('signup.departmentNeedsSbu') : departments.length ? t('signup.departmentPlaceholder') : t('signup.departmentNone')}
+                        options={departments.map((d) => ({ value: d.id, label: `${'— '.repeat(d.depth)}${d.name}` }))}
+                      />
                     </Field>
                   </div>
                   {serverError && (

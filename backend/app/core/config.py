@@ -47,8 +47,12 @@ class Settings(BaseSettings):
 
     # Email (leave SMTP_HOST empty to only log deliveries)
     smtp_host: str = ""
-    smtp_port: int = 1025
-    mail_from: str = "innovatex@anwargroup.example"
+    smtp_port: int = 587
+    smtp_user: str = ""            # the mailbox that signs in; empty = no sign-in (Mailpit)
+    smtp_password: str = ""
+    smtp_security: str = "auto"    # auto, starttls, ssl or none. auto: SSL on port 465, otherwise STARTTLS when offered
+    mail_from: str = "aopl.growthanalytics5@anwargroup.net"
+    mail_from_name: str = "InnovateX Hub"
 
     # Background worker
     outbox_poll_seconds: int = 5

@@ -1,0 +1,14 @@
+# Local ports. "docker compose up" on your own machine reads this file together with docker-compose.yml.
+# A server deployment that names docker-compose.yml explicitly (Dokploy, "docker compose -f docker-compose.yml up")
+# skips it, so nothing there fights over host ports.
+services:
+  backend:
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+  frontend:
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+  mailpit:
+    ports:
+      - "${MAILPIT_UI_PORT:-8026}:8025"
+      - "${MAILPIT_SMTP_PORT:-1026}:1025"

@@ -1,4 +1,8 @@
 # InnovateX Hub — every URL and port comes from the root .env file.
+# This file publishes no ports on the host, so it can run on a server next to other apps: the server's reverse proxy
+# (Traefik in Dokploy, for example) sends the domain to the frontend service on port 80, and the frontend passes
+# /api and /health on to the backend. On your own machine docker-compose.override.yml is picked up automatically
+# and opens the usual localhost ports.
 #   docker compose up --build        start everything
 #   docker compose down              stop (data stays in the volume)
 #   docker compose down -v           stop and delete the database and uploads
@@ -10,9 +14,13 @@ services:
     env_file: .env
     environment:
       BACKEND_HOST: 0.0.0.0
-      BACKEND_PORT: 8000            # port inside the container; the host port is ${BACKEND_PORT}
-    ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      BACKEND_PORT: 8000            # port inside the container
+    expose:
+      - "8000"
+    networks:
+      default:
+        aliases:
+          - innovatex-backend       # the name the frontend's nginx calls; unique, so it can't clash on a shared proxy network
     volumes:
       - innovatex_data:/data
     depends_on:
@@ -32,8 +40,8 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL}
         VITE_APP_NAME: ${VITE_APP_NAME}
         VITE_DISPLAY_TIMEZONE: ${VITE_DISPLAY_TIMEZONE}
-    ports:
-      - "${FRONTEND_PORT:-5173}:80"
+    expose:
+      - "80"
     depends_on:
       backend:
         condition: service_healthy
@@ -41,9 +49,6 @@ services:
 
   mailpit:                          # catches every email so you can read it in the browser
     image: axllent/mailpit:latest
-    ports:
-      - "${MAILPIT_UI_PORT:-8026}:8025"
-      - "${MAILPIT_SMTP_PORT:-1026}:1025"
     restart: unless-stopped
 
 volumes:

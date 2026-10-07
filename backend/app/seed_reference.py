@@ -3,6 +3,7 @@
 This is the part a real deployment keeps (it would live in Alembic data migrations).
 Demo people, challenges and ideas are in seed.py.
 """
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.admin.models import FeatureFlag, SystemSetting, WorkflowDefinition, WorkflowState, WorkflowTransition
@@ -209,15 +210,41 @@ TEMPLATES = [
     ("EM-05", "INITIATIVE_STATE_CHANGED", "[InnovateX] Status update - {{innovation_id}}",
      "The status of {{innovation_id}} ({{title}}) changed.\n\nFrom: {{old_status}}\nTo: {{new_status}}" + FOOTER),
     ("EM-06", "REVIEW_DUE_SOON", "[InnovateX] Review due - {{round}}", "You have reviews waiting in {{round}}. Due: {{due_date}}" + FOOTER),
-    ("EM-07", "ENTRY_SHORTLISTED", "[InnovateX] {{decision}} - {{entry_code}}", "{{decision}} in {{challenge}}.\n\nEntry: {{entry_code}}\nSign in to read the next steps and your feedback." + FOOTER),
-    ("EM-07B", "ENTRY_NOT_SHORTLISTED", "[InnovateX] {{decision}} - {{entry_code}}", "{{decision}} for {{challenge}}.\n\nEntry: {{entry_code}}\nSign in to read your written feedback." + FOOTER),
-    ("EM-08", "AWARD_PUBLISHED", "[InnovateX] Results published - {{challenge}}", "Results for {{challenge}} are published.\n\nEntry: {{entry_code}}" + FOOTER),
+    ("EM-07", "ENTRY_SHORTLISTED", "[InnovateX] {{decision}} - {{entry_code}}",
+     "Good news about your entry in {{challenge}}.\n\n{{message}}\n\nDecision: {{decision}}\nChallenge: {{challenge}}\nEntry: {{entry_code}}\n\nThe judges' written feedback and your next steps are ready. Sign in to read them." + FOOTER),
+    ("EM-07B", "ENTRY_NOT_SHORTLISTED", "[InnovateX] {{decision}} - {{entry_code}}",
+     "Thank you for taking part in {{challenge}}.\n\n{{message}}\n\nDecision: {{decision}}\nChallenge: {{challenge}}\nEntry: {{entry_code}}\n\nThe judges wrote feedback on what worked well and what to improve. Sign in to read it." + FOOTER),
+    ("EM-08", "AWARD_PUBLISHED", "[InnovateX] {{headline}} - {{challenge}}",
+     "The results of {{challenge}} are published.\n\n{{message}}\n\nResult: {{result}}\nChallenge: {{challenge}}\nEntry: {{entry_code}}\n\nSign in to see the full results, your scores and the judges' feedback." + FOOTER),
     ("EM-09", "ENTRY_REGISTERED", "[InnovateX] You're registered - {{entry_code}}", "You are registered for {{challenge}}.\n\nEntry: {{entry_code}}" + FOOTER),
     ("EM-10", "TEAM_JOIN_REQUESTED", "[InnovateX] Join request for {{team}}", "{{requester}} asked to join {{team}}. Approve or decline the request." + FOOTER),
     ("EM-11", "TEAM_JOIN_APPROVED", "[InnovateX] You're in: {{team}}", "Your request to join {{team}} was approved." + FOOTER),
     ("EM-12", "METHODOLOGY_SUBMITTED", "[InnovateX] Methodology submitted - {{entry_code}}", "Version {{version}} of the methodology for {{entry_code}} was submitted. You can edit and resubmit until the deadline." + FOOTER),
     ("EM-13", "CHALLENGE_PUBLISHED", "[InnovateX] New challenge: {{challenge}}", "A new challenge is open: {{challenge}}." + FOOTER),
 ]
+
+# The first wording of the templates that were rewritten. A database that still holds exactly this text gets the new
+# wording at start; a template the admin edited is left alone.
+OLD_TEMPLATES = {
+    "EM-07": ("[InnovateX] {{decision}} - {{entry_code}}",
+              "{{decision}} in {{challenge}}.\n\nEntry: {{entry_code}}\nSign in to read the next steps and your feedback." + FOOTER),
+    "EM-07B": ("[InnovateX] {{decision}} - {{entry_code}}",
+               "{{decision}} for {{challenge}}.\n\nEntry: {{entry_code}}\nSign in to read your written feedback." + FOOTER),
+    "EM-08": ("[InnovateX] Results published - {{challenge}}", "Results for {{challenge}} are published.\n\nEntry: {{entry_code}}" + FOOTER),
+}
+
+
+def ensure_templates(db: Session) -> None:
+    current = {code: (subject, body) for code, _, subject, body in TEMPLATES}
+    changed = False
+    for tpl in db.scalars(select(NotificationTemplate).where(NotificationTemplate.code.in_(list(OLD_TEMPLATES)))).all():
+        if (tpl.subject_template, tpl.body_template) == OLD_TEMPLATES[tpl.code]:
+            tpl.subject_template, tpl.body_template = current[tpl.code]
+            tpl.version = (tpl.version or 1) + 1
+            changed = True
+    if changed:
+        db.commit()
+
 
 SETTINGS = [
     ("designated_reviewer_mailbox", "innovation.office@anwargroup.example", "Mailbox that receives every new idea (not one person's email)."),

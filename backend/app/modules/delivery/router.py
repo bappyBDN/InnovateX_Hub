@@ -829,7 +829,12 @@ def results_action(challenge_id: str, action: str, request: Request, cu: Current
                       title=f"Results are out: {en(ch.title_i18n)}",
                       body={"WINNER": "Congratulations — your entry won.", "RUNNER_UP": "Congratulations — your entry is a runner-up."}
                       .get(new, "See the results and your feedback."),
-                      link=f"/entries/{entry.id}/feedback", vars={"challenge": en(ch.title_i18n), "entry_code": entry.code})
+                      link=f"/entries/{entry.id}/feedback",
+                      vars={"challenge": en(ch.title_i18n), "entry_code": entry.code,
+                            "result": {"WINNER": "Winner", "RUNNER_UP": "Runner-up"}.get(new, "Completed"),
+                            # an email whose subject starts with "Congratulations" gets the champion look
+                            "headline": {"WINNER": "Congratulations, you are the champion",
+                                         "RUNNER_UP": "Congratulations, you are a runner-up"}.get(new, "Results published")})
     record_history(db, "challenge", ch.id, ch.status_code, "RESULTS_PUBLISHED", "PUBLISH_RESULTS", cu.id)
     ch.status_code, ch.results_published_at = "RESULTS_PUBLISHED", now
     if rnd:
