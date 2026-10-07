@@ -15,6 +15,7 @@ from app.modules.admin.models import FeatureFlag
 from app.modules.challenges.models import Team, TeamMember
 from app.modules.delivery.models import Badge, PointsLedger, Reward, UserBadge
 from app.modules.identity.models import OrgUnit, Role, User, UserRoleAssignment
+from app.modules.identity.sbu import is_sbu, sbu_of
 from app.modules.masterdata.models import Skill, UserSkill
 from app.modules.notifications.models import InAppNotification
 from app.shared.models.base import row, utcnow
@@ -31,6 +32,7 @@ class LoginIn(BaseModel):
 def _me(db: Session, cu: CurrentUser) -> dict:
     u = cu.user
     unit = db.get(OrgUnit, u.primary_org_unit_id) if u.primary_org_unit_id else None
+    sbu = sbu_of(db, unit)
     teams = db.execute(select(Team, TeamMember.member_role).join(TeamMember, TeamMember.team_id == Team.id)
                        .where(TeamMember.user_id == u.id, TeamMember.status == "ACTIVE")).all()
     unread = db.scalar(select(func.count()).select_from(InAppNotification)
@@ -39,6 +41,7 @@ def _me(db: Session, cu: CurrentUser) -> dict:
         "id": u.id, "full_name": u.full_name, "email": u.email, "job_title": u.job_title, "locale": u.locale,
         "grade": u.grade, "employee_no": u.employee_no,
         "org_unit": {"id": unit.id, "name": en(unit.name_i18n), "path": unit.path} if unit else None,
+        "sbu": {"id": sbu.id, "name": en(sbu.name_i18n)} if sbu else None, "department": u.department,
         "roles": sorted(cu.roles), "permissions": sorted(cu.perms), "is_judge": _is_judge(db, cu),
         "teams": [{"id": t.id, "name": t.name, "role": role, "challenge_id": t.challenge_id} for t, role in teams],
         "feature_flags": {f.code: f.is_enabled for f in db.scalars(select(FeatureFlag)).all()},
@@ -245,7 +248,7 @@ def remove_role(assignment_id: str, request: Request, cu: CurrentUser = Depends(
 # ---- Organization tree ---------------------------------------------------------
 def _unit(u: OrgUnit, db: Session) -> dict:
     return {"id": u.id, "parent_id": u.parent_id, "unit_type": u.unit_type, "code": u.code, "name": en(u.name_i18n),
-            "name_i18n": u.name_i18n, "path": u.path, "is_active": u.is_active,
+            "name_i18n": u.name_i18n, "path": u.path, "is_active": u.is_active, "is_sbu": is_sbu(u),
             "head": user_brief(db, u.head_user_id),
             "members": db.scalar(select(func.count()).select_from(User).where(User.primary_org_unit_id == u.id))}
 

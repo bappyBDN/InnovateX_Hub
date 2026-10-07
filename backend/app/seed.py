@@ -25,6 +25,7 @@ from app.modules.evaluation import service as esvc
 from app.modules.evaluation.models import (Feedback, Panel, PanelMember, ReviewAssignment, ReviewRound, ReviewScore,
                                            ReviewSummary, Shortlist, ShortlistEntry)
 from app.modules.identity.models import Organization, OrgUnit, User, UserRoleAssignment
+from app.modules.identity.sbu import SBUS
 from app.modules.initiatives import service as isvc
 from app.modules.initiatives.models import ClarificationRequest, Comment, Initiative, InitiativeVersion
 from app.modules.masterdata.models import UserSkill
@@ -73,12 +74,13 @@ def seed_all(db: Session) -> None:
     unit("AES_QA", "Quality & DevSecOps", "DEPARTMENT", "AES_ENG")
     unit("AES_DATA", "Data & AI", "DEPARTMENT", "AES_ENG")
     unit("AES_SUPPORT", "Application Support", "DEPARTMENT", "AES_ENG")
-    unit("CEMENT", "Anwar Cement", "COMPANY", "ANWAR", "আনোয়ার সিমেন্ট")
+    unit("CEMENT", "Anwar Cement LTD", "COMPANY", "ANWAR", "আনোয়ার সিমেন্ট লিমিটেড")
     unit("CEMENT_OPS", "Cement Operations", "FUNCTION", "CEMENT")
     unit("CEMENT_KILN", "Kiln & Process", "DEPARTMENT", "CEMENT_OPS")
     unit("CEMENT_MAINT", "Maintenance", "DEPARTMENT", "CEMENT_OPS")
-    unit("ISPAT", "Anwar Ispat (Steel)", "COMPANY", "ANWAR", "আনোয়ার ইস্পাত")
-    unit("TEXTILE", "Anwar Textiles", "COMPANY", "ANWAR", "আনোয়ার টেক্সটাইলস")
+    for code, name, bn in SBUS:      # the remaining SBUs (the group and Anwar Cement are added above)
+        if code not in units:
+            unit(code, name, "COMPANY", "ANWAR", bn)
     unit("GROUP_HR", "Group HR", "FUNCTION", "ANWAR")
     unit("GROUP_FIN", "Group Finance", "FUNCTION", "ANWAR")
     unit("GROUP_PROC", "Group Procurement", "FUNCTION", "ANWAR")

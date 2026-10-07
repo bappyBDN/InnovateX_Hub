@@ -5,6 +5,7 @@ from sqlalchemy.engine import Engine
 
 ADDED_COLUMNS = (
     ("panel_members", "stages", "JSON"),
+    ("users", "department", "VARCHAR(150)"),
 )
 
 

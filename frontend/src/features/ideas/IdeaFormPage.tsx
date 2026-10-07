@@ -214,9 +214,9 @@ export default function IdeaFormPage() {
     setLoaded(true);
   }, [existing.data, loaded]);
 
-  // Default the organization unit to the user's own unit on a new idea.
+  // Default the SBU to the user's own SBU on a new idea.
   useEffect(() => {
-    if (!routeKey && me?.org_unit?.id) setForm((f) => (f.org_unit_id ? f : { ...f, org_unit_id: me.org_unit!.id }));
+    if (!routeKey && me?.sbu?.id) setForm((f) => (f.org_unit_id ? f : { ...f, org_unit_id: me.sbu!.id }));
   }, [me, routeKey]);
 
   // ---- autosave: create the draft on first meaningful input, then PATCH ----------------------
@@ -339,9 +339,10 @@ export default function IdeaFormPage() {
   const percent = Math.round((filled * 100) / (REQUIRED.length + 1));
   const lookup = (type: string) =>
     (lookups.data?.[type] ?? []).filter((v) => v.is_active).map((v) => ({ value: v.code, label: tr(v.label_i18n, v.label) }));
+  // SBUs only. An older idea filed under a smaller unit keeps that unit in the list until it is changed.
   const unitOptions = (orgUnits.data ?? [])
-    .filter((u) => u.is_active)
-    .map((u) => ({ value: u.id, label: `${'— '.repeat(Math.max(0, u.path.split('.').length - 1))}${tr(u.name_i18n, u.name)}` }));
+    .filter((u) => (u.is_sbu && u.is_active) || u.id === form.org_unit_id)
+    .map((u) => ({ value: u.id, label: tr(u.name_i18n, u.name) }));
   const categoryOptions = (categories.data ?? []).map((c) => ({ value: c.id, label: tr(c.name_i18n, c.name) }));
   const sharesGiven = form.contributors.reduce((sum, c) => sum + (Number(c.share) || 0), 0);
   const allShares = form.contributors.length > 0 && form.contributors.every((c) => c.share.trim() !== '');

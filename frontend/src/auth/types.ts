@@ -26,6 +26,9 @@ export interface Me {
   job_title: string | null;
   locale: string;
   org_unit: { id: string; name: string } | null;
+  /** The SBU (group or company) the person's unit sits in. */
+  sbu?: { id: string; name: string } | null;
+  department?: string | null;
   roles: Role[];
   permissions: Permission[];
   /** True when the admin chose this person as a judge of a challenge or an idea (no role needed). */

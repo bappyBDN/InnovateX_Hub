@@ -20,6 +20,7 @@ from app.modules.evaluation.router import router as evaluation_router
 from app.modules.identity.accounts import router as accounts_router
 from app.modules.identity.models import User
 from app.modules.identity.router import router as identity_router
+from app.modules.identity.sbu import ensure_sbus
 from app.modules.initiatives.router import router as initiatives_router
 from app.modules.masterdata.router import router as masterdata_router
 from app.modules.submissions.router import router as submissions_router
@@ -36,16 +37,16 @@ async def lifespan(_: FastAPI):
     # Tables are created from the models if they are missing (works for PostgreSQL and SQLite).
     Base.metadata.create_all(engine)
     ensure_columns(engine)
-    if settings.seed_on_start:
-        db = SessionLocal()
-        try:
-            if not db.scalar(select(func.count()).select_from(User)):
-                from app.seed import seed_database
-                log.info("Empty database: loading demo data…")
-                seed_database(db)
-                log.info("Demo data loaded.")
-        finally:
-            db.close()
+    db = SessionLocal()
+    try:
+        if settings.seed_on_start and not db.scalar(select(func.count()).select_from(User)):
+            from app.seed import seed_database
+            log.info("Empty database: loading demo data…")
+            seed_database(db)
+            log.info("Demo data loaded.")
+        ensure_sbus(db)
+    finally:
+        db.close()
     # A serverless function (Vercel) is frozen between requests, so the background thread only runs in a real server.
     serverless = bool(os.environ.get("VERCEL"))
     if not serverless:

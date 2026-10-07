@@ -37,6 +37,7 @@ class User(Base, StdColumns):
     password_hash = mapped_column(String, nullable=True)  # local login fallback until Entra ID
     full_name = mapped_column(String)
     job_title = sc(150, nullable=True)
+    department = sc(150, nullable=True)  # free text from sign-up; the SBU is primary_org_unit_id
     grade = sc(30, nullable=True)
     joined_on = mapped_column(Date, nullable=True)
     primary_org_unit_id = ref()

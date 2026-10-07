@@ -81,7 +81,8 @@ export default function ProfilePage() {
           <dl className="mt-4 space-y-3 text-sm">
             {(
               [
-                ['department', u.org_unit?.name],
+                ['sbu', u.sbu?.name ?? u.org_unit?.name],
+                ['department', u.department ?? (u.sbu?.id !== u.org_unit?.id ? u.org_unit?.name : null)],
                 ['email', u.email],
                 ['employeeNo', u.employee_no],
                 ['grade', u.grade],

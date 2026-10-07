@@ -63,8 +63,8 @@
       "forColleagueHelp": "Use this for staff without a company login. Your colleague is the owner and gets the credit.",
       "colleague": "Colleague",
       "colleagueHelp": "Search by name. You see name and department only.",
-      "orgUnit": "Organization unit",
-      "orgUnitHelp": "The company, function or team this idea belongs to.",
+      "orgUnit": "SBU",
+      "orgUnitHelp": "The SBU this idea belongs to.",
       "category": "Category",
       "type": "Innovation type",
       "typeHelp": "Any kind counts — it does not have to be IT.",
@@ -397,6 +397,7 @@
     "title": "My profile",
     "subtitle": "Your details, skills and recognition.",
     "fields": {
+      "sbu": "SBU",
       "department": "Department",
       "email": "Email",
       "employeeNo": "Employee no.",

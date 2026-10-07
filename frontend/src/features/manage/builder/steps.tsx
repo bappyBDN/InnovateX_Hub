@@ -182,6 +182,8 @@ export function EligibilityStep({ cfg, set, lookups, locked }: StepProps) {
         ? cfg.eligibility_org_unit_ids.filter((x) => x !== id)
         : [...cfg.eligibility_org_unit_ids, id],
     });
+  // Only SBUs are offered. A smaller unit ticked on an older challenge stays listed so it can be unticked.
+  const units = lookups.orgUnits.filter((u) => (u.is_sbu && u.is_active !== false) || cfg.eligibility_org_unit_ids.includes(u.id));
   const sizeError = cfg.team_max_size < cfg.team_min_size ? t('manage.builder.teamSizeError') : null;
   return (
     <div className="space-y-5">
@@ -190,11 +192,11 @@ export function EligibilityStep({ cfg, set, lookups, locked }: StepProps) {
         <legend className="text-sm font-medium text-ink">{t('manage.builder.eligibility')}</legend>
         <p className="text-sm text-ink-muted">{t('manage.builder.eligibilityHelp')}</p>
         <div className="max-h-64 overflow-y-auto rounded-control border border-line p-2">
-          {lookups.orgUnits.map((u) => (
-            <div key={u.id} style={{ paddingLeft: `${(u.path.split('.').length - 1) * 16}px` }} className="py-1">
+          {units.map((u) => (
+            <div key={u.id} className="py-1">
               <Checkbox
                 label={u.name}
-                description={t(`manage.unitType.${u.unit_type}`, u.unit_type)}
+                description={u.is_sbu ? undefined : t(`manage.unitType.${u.unit_type}`, u.unit_type)}
                 checked={cfg.eligibility_org_unit_ids.includes(u.id)}
                 onChange={() => toggleUnit(u.id)}
                 disabled={locked}

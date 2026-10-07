@@ -168,6 +168,8 @@ export interface OrgUnitItem {
   name: string;
   unit_type: string;
   path: string;
+  is_sbu?: boolean;
+  is_active?: boolean;
 }
 export interface FormItem {
   id: string;

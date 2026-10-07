@@ -175,6 +175,7 @@ export interface OrgUnitItem {
   path: string;
   unit_type: string;
   is_active: boolean;
+  is_sbu?: boolean;
 }
 
 // ---- Master data hooks --------------------------------------------------------------------

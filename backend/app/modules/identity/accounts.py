@@ -16,6 +16,7 @@ from app.core.permissions import CurrentUser, load_roles, require_roles
 from app.core.security import create_access_token, hash_password, sha256
 from app.modules.identity.models import (Organization, OrgUnit, Permission, Role, RolePermission, User, UserInvitation,
                                          UserRoleAssignment)
+from app.modules.identity.sbu import is_sbu, sbu_units
 from app.modules.notifications.models import NotificationDelivery
 from app.modules.notifications.service import _attempt
 from app.shared.models.base import iso, utcnow
@@ -51,10 +52,10 @@ def _role_names(db: Session, codes: list[str]) -> list[str]:
 @router.get("/auth/signup-options")
 def signup_options(invite: str = "", db: Session = Depends(get_db)):
     """Everything the sign-up page needs. No sign-in required."""
-    units = db.scalars(select(OrgUnit).where(OrgUnit.is_active.is_(True)).order_by(OrgUnit.path)).all()
+    units = sbu_units(db)       # people sign up under an SBU
     out = {"signup_enabled": bool(setting(db, "signup_enabled", settings.signup_enabled)),
            "allowed_domains": setting(db, "signup_allowed_domains", "") or "",
-           "org_units": [{"id": u.id, "name": en(u.name_i18n), "unit_type": u.unit_type, "depth": u.path.count(".")} for u in units],
+           "org_units": [{"id": u.id, "name": en(u.name_i18n), "unit_type": u.unit_type, "depth": 0} for u in units],
            "invitation": None}
     if invite:
         inv = _invitation(db, invite)
@@ -72,6 +73,7 @@ class SignupIn(BaseModel):
     email: str
     password: str
     job_title: str | None = None
+    department: str | None = None
     org_unit_id: str | None = None
     employee_no: str | None = None
     phone: str | None = None
@@ -99,16 +101,20 @@ def signup(body: SignupIn, request: Request, db: Session = Depends(get_db)):
         errors["email"] = "Use your company email address (" + ", ".join("@" + d for d in domains) + ")."
     if inv and email != inv.email.lower():
         errors["email"] = "Sign up with the email address the invitation was sent to."
+    employee_no = (body.employee_no or "").strip()
+    if not employee_no:
+        errors["employee_no"] = "Enter your employee number."
+    unit = db.get(OrgUnit, body.org_unit_id) if body.org_unit_id else None
+    if body.org_unit_id and not (is_sbu(unit) and unit.is_active):
+        errors["org_unit_id"] = "Choose an SBU from the list."
     if errors:
         raise DomainError("VALIDATION_ERROR", "Some fields need attention.", 422, {"fields": errors})
     if db.scalar(select(User.id).where(func.lower(User.email) == email)):
         raise DomainError("EMAIL_TAKEN", "An account with this email already exists. Sign in instead.", 409)
-    unit = db.get(OrgUnit, body.org_unit_id) if body.org_unit_id else None
     org = db.scalar(select(Organization.id))
-    count = db.scalar(select(func.count()).select_from(User)) or 0
     user = User(organization_id=org, full_name=body.full_name.strip(), email=email, password_hash=hash_password(body.password),
-                job_title=(body.job_title or "").strip() or None, primary_org_unit_id=unit.id if unit else None,
-                employee_no=(body.employee_no or "").strip() or f"E{2000 + count}", phone=body.phone, grade=None,
+                job_title=(body.job_title or "").strip() or None, department=(body.department or "").strip() or None,
+                primary_org_unit_id=unit.id if unit else None, employee_no=employee_no, phone=body.phone, grade=None,
                 joined_on=utcnow().date(), has_corporate_login=True, is_active=True, last_login_at=utcnow())
     db.add(user)
     db.flush()

@@ -20,7 +20,7 @@ REQUIRED_AT_SUBMIT = {
     "title": "Title", "problem_statement": "Problem statement", "current_process": "Current process",
     "proposed_solution": "Proposed innovation", "category_id": "Category", "innovation_type_code": "Innovation type",
     "expected_benefit": "Expected benefit", "primary_kpi": "Primary KPI", "scalability_level_code": "Scalability",
-    "data_classification_code": "Data classification", "expected_timeline": "Expected timeline", "org_unit_id": "Organization unit",
+    "data_classification_code": "Data classification", "expected_timeline": "Expected timeline", "org_unit_id": "SBU",
 }
 EDITABLE = ["title", "summary", "problem_statement", "affected_users", "current_process", "proposed_solution",
             "technology_used", "differentiator", "category_id", "innovation_type_code", "org_unit_id", "sponsor_user_id",

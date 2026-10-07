@@ -36,7 +36,7 @@ export default function SignupPage() {
     queryFn: () => api.get<SignupOptions>('/auth/signup-options', invite ? { invite } : undefined),
   });
 
-  const [form, setForm] = useState({ full_name: '', email: '', password: '', confirm: '', job_title: '', org_unit_id: '', employee_no: '' });
+  const [form, setForm] = useState({ full_name: '', email: '', password: '', confirm: '', job_title: '', department: '', org_unit_id: '', employee_no: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -57,6 +57,7 @@ export default function SignupPage() {
     e.preventDefault();
     const next: Record<string, string> = {};
     if (form.password !== form.confirm) next.confirm = t('signup.passwordMismatch');
+    if (!form.employee_no.trim()) next.employee_no = t('signup.employeeNoRequired');
     setErrors(next);
     setServerError(null);
     if (Object.keys(next).length) return;
@@ -69,8 +70,9 @@ export default function SignupPage() {
           email: form.email,
           password: form.password,
           job_title: form.job_title || null,
+          department: form.department.trim() || null,
           org_unit_id: form.org_unit_id || null,
-          employee_no: form.employee_no || null,
+          employee_no: form.employee_no.trim(),
           invite_token: invited ? invite : null,
         },
         { noAuthRedirect: true },
@@ -151,24 +153,29 @@ export default function SignupPage() {
                     <Field label={t('signup.jobTitle')} hint={t('signup.optional')}>
                       <Input value={form.job_title} onChange={set('job_title')} autoComplete="organization-title" />
                     </Field>
-                    <Field label={t('signup.employeeNo')} hint={t('signup.optional')}>
+                    <Field label={t('signup.employeeNo')} required error={errors.employee_no}>
                       <Input value={form.employee_no} onChange={set('employee_no')} />
                     </Field>
                   </div>
-                  <Field label={t('signup.orgUnit')} hint={t('signup.optional')}>
-                    <Select
-                      value={form.org_unit_id}
-                      onChange={set('org_unit_id')}
-                      placeholder={t('signup.orgUnitPlaceholder')}
-                      options={(options.data?.org_units ?? []).map((u) => ({ value: u.id, label: `${'— '.repeat(u.depth)}${u.name}` }))}
-                    />
-                  </Field>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label={t('signup.orgUnit')} hint={t('signup.optional')} error={errors.org_unit_id}>
+                      <Select
+                        value={form.org_unit_id}
+                        onChange={set('org_unit_id')}
+                        placeholder={t('signup.orgUnitPlaceholder')}
+                        options={(options.data?.org_units ?? []).map((u) => ({ value: u.id, label: u.name }))}
+                      />
+                    </Field>
+                    <Field label={t('signup.department')} hint={t('signup.optional')} error={errors.department}>
+                      <Input value={form.department} onChange={set('department')} />
+                    </Field>
+                  </div>
                   {serverError && (
                     <p role="alert" className="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger">
                       {serverError}
                     </p>
                   )}
-                  <Button type="submit" fullWidth size="lg" loading={busy} disabled={!form.full_name || !form.email || !form.password || !form.confirm}>
+                  <Button type="submit" fullWidth size="lg" loading={busy} disabled={!form.full_name || !form.email || !form.password || !form.confirm || !form.employee_no.trim()}>
                     {busy ? t('signup.creating') : t('signup.submit')}
                   </Button>
                   {!invited && <p className="text-sm text-ink-muted">{t('signup.roleNote')}</p>}

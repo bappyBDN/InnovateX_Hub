@@ -162,7 +162,7 @@
       "rules": "Rules and terms",
       "rulesHelp": "Rules, originality and idea-ownership terms.",
       "eligibility": "Who can register",
-      "eligibilityHelp": "Tick the organization units that may join. Their sub-units are included. Leave all unticked to open it to every employee. Panel members are always excluded.",
+      "eligibilityHelp": "Tick the SBUs that may join. Leave all unticked to open it to every employee. Panel members are always excluded.",
       "eligibilityAll": "Open to all employees.",
       "eligibilitySome": "Limited to {{count}} unit(s) and their sub-units.",
       "participationMode": "How people take part",

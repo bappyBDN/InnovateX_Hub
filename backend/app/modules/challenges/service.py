@@ -16,6 +16,7 @@ from app.modules.challenges.models import (Challenge, ChallengeEligibilityRule, 
 from app.modules.evaluation.models import (Feedback, Panel, PanelMember, ReviewRound, ScorecardCriterion, Shortlist,
                                            ShortlistRule)
 from app.modules.identity.models import OrgUnit
+from app.modules.identity.sbu import is_sbu, sbu_of
 from app.modules.masterdata.models import ChallengeDomain
 from app.shared import cache
 from app.shared.models.base import iso, row, utcnow
@@ -298,7 +299,11 @@ def eligibility(db: Session, ch: Challenge, cu: CurrentUser) -> dict:
     if rules:
         unit = cache.one(db, OrgUnit, cu.user.primary_org_unit_id)
         allowed = [a for a in (cache.one(db, OrgUnit, r.rule_value.get("org_unit_id")) for r in rules) if a]
-        if not unit or not any(unit.path == a.path or unit.path.startswith(a.path + ".") for a in allowed):
+        mine = sbu_of(db, unit)
+        # An SBU rule means people of that SBU; a rule on a smaller unit covers that unit and what sits under it.
+        fits = lambda a: (mine is not None and mine.id == a.id) if is_sbu(a) else (  # noqa: E731
+            unit.path == a.path or unit.path.startswith(a.path + "."))
+        if not unit or not any(fits(a) for a in allowed):
             names = ", ".join(en(a.name_i18n) for a in allowed)
             return {"eligible": False, "reason": f"This challenge is open to {names} staff only."}
     return {"eligible": True, "reason": None}
