@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '@/api/client';
 import logo from '@/assets/agl_logo.jpg';
-import { useAuth } from '@/auth/AuthProvider';
+import introVideo from '@/assets/innovatex_hub_intro.mp4';
 import { DISPLAY_TZ } from '@/utils/dates';
 import { money } from '@/utils/format';
 import { tr, type I18nText } from '@/utils/i18n';
@@ -82,56 +82,6 @@ function timeLeft(iso: string | null): string | null {
   const d = Math.floor(ms / 86_400_000);
   const h = Math.floor((ms % 86_400_000) / 3_600_000);
   return d > 0 ? `${d}d ${h}h left` : `${h}h ${Math.floor((ms % 3_600_000) / 60_000)}m left`;
-}
-
-/** Sign in without leaving the landing page. */
-function SignInCard() {
-  const { login } = useAuth();
-  const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await login(email.trim(), password);
-      navigate('/', { replace: true });
-    } catch {
-      setError('The email or password is not right. Try again, or contact the innovation office.');
-      setBusy(false);
-    }
-  };
-  return (
-    <form className="signin" onSubmit={submit} noValidate aria-labelledby="signinTitle">
-      <h2 id="signinTitle">Sign in to InnovateX Hub</h2>
-      <p className="signin-sub">Open your ideas, teams and challenges.</p>
-      <label htmlFor="lpEmail">Work email</label>
-      <input id="lpEmail" type="email" autoComplete="username" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <label htmlFor="lpPassword">Password</label>
-      <input id="lpPassword" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-      {error && (
-        <p className="signin-error" role="alert">
-          {error}
-        </p>
-      )}
-      <button className="btn btn-primary" type="submit" disabled={busy || !email || !password}>
-        {busy ? 'Signing in…' : 'Sign in'}
-      </button>
-      <div className="signin-or">
-        <span>New here?</span>
-      </div>
-      <Link className="btn btn-gold" to="/signup">
-        Create an account
-      </Link>
-      <Link className="signin-demo" to="/login">
-        Use a demo account
-      </Link>
-    </form>
-  );
 }
 
 /** Hero picture: an idea (light bulb) surrounded by what happens to it — team, fair judging, building, reward. */
@@ -376,7 +326,7 @@ export default function LandingPage() {
                 </div>
               </div>
               <div data-in="3">
-                <SignInCard />
+                <video className="hero-video" src={introVideo} autoPlay muted loop playsInline controls preload="metadata" aria-label="InnovateX Hub introduction video" />
               </div>
             </div>
             {stats && (
