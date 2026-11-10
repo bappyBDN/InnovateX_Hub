@@ -11,11 +11,9 @@ import { formatDate, relativeFromNow } from '@/utils/dates';
 
 export interface ScoringRules {
   target_max: number;
-  quality_max: number;
   deadline_max: number;
   communication_max: number;
   missed_deadline_penalty: number;
-  rework_penalty: number;
   missing_update_penalty: number;
   tiers: { min: number; multiplier: number }[];
   week_start_day: string;
@@ -25,15 +23,14 @@ export interface ScoringRules {
 interface Signals {
   as_of?: string;
   gained?: number;
-  open_tasks?: number;
-  blocked?: number;
+  checks?: number;
   update_days?: number;
-  partial?: boolean;
-  overdue?: boolean;
-  communication?: { updates: number; updates_max: number; progress: number; progress_max: number; deadline: number; deadline_max: number };
-  finished?: boolean;
   expected?: number | null;
-  deadline?: { basis: 'tasks'; due: number; late: number } | { basis: 'timeline'; expected: number | null; actual: number };
+  actual?: number;
+  overdue?: boolean;
+  partial?: boolean;
+  finished?: boolean;
+  communication?: { updates: number; updates_max: number; progress: number; progress_max: number; deadline: number; deadline_max: number };
 }
 
 export interface Scorecard {
@@ -43,11 +40,9 @@ export interface Scorecard {
   progress_end: number;
   weeks_left: number | null;
   required_pct: number;
-  quality: number;
   deadline: number;
   communication: number;
   missed_deadlines: number;
-  rework: number;
   missing_updates: number;
   target_points: number;
   deductions: number;
@@ -103,7 +98,7 @@ function multiplierFor(avg: number | null, rules: ScoringRules): number | null {
 function exportCsv(p: ProjectRef, rules: ScoringRules, headers: string[]) {
   const rows = (p.scoring?.scorecards ?? []).slice().reverse().map((s) => [
     s.week_start, s.progress_start, s.progress_end, r2(s.progress_end - s.progress_start), s.weeks_left ?? '', s.required_pct,
-    s.target_points, s.quality, s.deadline, s.communication, s.missed_deadlines, s.rework, s.missing_updates,
+    s.target_points, s.deadline, s.communication, s.missed_deadlines, s.missing_updates,
     s.deductions, s.total, s.is_final ? 'final' : 'so far',
   ]);
   const avg = p.scoring?.bonus?.average ?? p.scoring?.average ?? null;
@@ -161,70 +156,49 @@ function Part({ label, value, max, why, children }: { label: string; value: numb
 function Breakdown({ c, rules }: { c: Scorecard; rules: ScoringRules }) {
   const { t } = useTranslation();
   const sg = c.signals ?? {};
-  const dl = sg.deadline;
+  const k = 'projectRewards.score.auto';
+  if (sg.finished) return <p className="mt-2 text-sm text-success">{t(`${k}.finished`)}</p>;
   const minus: string[] = [];
-  if (c.missed_deadlines) minus.push(t('projectRewards.score.auto.missed', { count: c.missed_deadlines, pts: c.missed_deadlines * rules.missed_deadline_penalty }));
-  if (c.rework) minus.push(t('projectRewards.score.auto.rework', { count: c.rework, pts: c.rework * rules.rework_penalty }));
-  if (c.missing_updates) minus.push(t('projectRewards.score.auto.missing', { pts: c.missing_updates * rules.missing_update_penalty }));
-  if (sg.finished) return <p className="mt-2 text-sm text-success">{t('projectRewards.score.auto.finished')}</p>;
+  if (c.missed_deadlines) minus.push(t(`${k}.missed`, { count: c.missed_deadlines, pts: c.missed_deadlines * rules.missed_deadline_penalty }));
+  if (c.missing_updates) minus.push(t(`${k}.missing`, { pts: c.missing_updates * rules.missing_update_penalty }));
+  const timeline = sg.overdue
+    ? t(`${k}.deadlineOverdue`)
+    : sg.expected != null
+      ? t(`${k}.deadlineTimeline`, { actual: r2(sg.actual ?? c.progress_end), expected: sg.expected })
+      : t(`${k}.deadlineWeek`);
+  const cm = sg.communication;
   return (
     <div className="mt-3 space-y-3">
-      {sg.partial && <p className="rounded-control bg-info-soft p-2 text-xs text-ink">{t('projectRewards.score.auto.partialNote')}</p>}
+      {sg.partial && <p className="rounded-control bg-info-soft p-2 text-xs text-ink">{t(`${k}.partialNote`)}</p>}
       <ul className="space-y-2">
         <Part
-          label={t('projectRewards.score.auto.target')}
+          label={t(`${k}.target`)}
           value={c.target_points}
           max={rules.target_max}
           why={
-            sg.partial
-              ? sg.expected != null
-                ? t('projectRewards.score.auto.targetTimeline', { actual: r2(c.progress_end), expected: sg.expected })
-                : t('projectRewards.score.auto.deadlineNone')
-              : t('projectRewards.score.auto.targetWhy', { gained: r2(c.progress_end - c.progress_start), required: c.required_pct })
+            sg.partial && sg.expected != null
+              ? t(`${k}.targetTimeline`, { actual: r2(c.progress_end), expected: sg.expected })
+              : t(`${k}.targetWhy`, { gained: r2(c.progress_end - c.progress_start), required: c.required_pct })
           }
         />
-        <Part
-          label={t('projectRewards.score.auto.quality')}
-          value={c.quality}
-          max={rules.quality_max}
-          why={sg.open_tasks ? t('projectRewards.score.auto.qualityWhy', { blocked: sg.blocked ?? 0, open: sg.open_tasks }) : t('projectRewards.score.auto.qualityNone')}
-        />
-        <Part
-          label={t('projectRewards.score.auto.deadline')}
-          value={c.deadline}
-          max={rules.deadline_max}
-          why={
-            sg.overdue
-              ? t('projectRewards.score.auto.deadlineOverdue')
-              : dl?.basis === 'tasks'
-              ? t('projectRewards.score.auto.deadlineTasks', { late: dl.late, due: dl.due })
-              : dl?.basis === 'timeline' && dl.expected != null
-                ? t('projectRewards.score.auto.deadlineTimeline', { actual: r2(dl.actual), expected: dl.expected })
-                : t('projectRewards.score.auto.deadlineNone')
-          }
-        />
-        <Part
-          label={t('projectRewards.score.auto.communication')}
-          value={c.communication}
-          max={rules.communication_max}
-          why={sg.communication ? '' : t('projectRewards.score.auto.communicationWhy', { count: sg.update_days ?? 0 })}
-        >
-          {sg.communication && (
+        <Part label={t(`${k}.deadline`)} value={c.deadline} max={rules.deadline_max} why={timeline} />
+        <Part label={t(`${k}.communication`)} value={c.communication} max={rules.communication_max} why="">
+          {cm && (
             <ul className="mt-1 space-y-0.5 text-xs text-ink-muted">
-              {sg.communication.updates_max > 0 ? (
-                <SubPart label={t('projectRewards.score.auto.commUpdates', { count: sg.update_days ?? 0 })} v={sg.communication.updates} max={sg.communication.updates_max} />
+              {cm.updates_max > 0 ? (
+                <SubPart label={t(`${k}.commUpdates`, { count: sg.update_days ?? 0 })} v={cm.updates} max={cm.updates_max} />
               ) : (
-                <li>{t('projectRewards.score.auto.commUpdatesPartial')}</li>
+                <li>{t(`${k}.commUpdatesPartial`)}</li>
               )}
-              <SubPart label={t('projectRewards.score.auto.commProgress')} v={sg.communication.progress} max={sg.communication.progress_max} />
-              <SubPart label={t(sg.overdue ? 'projectRewards.score.auto.commDeadlineOverdue' : 'projectRewards.score.auto.commDeadline')} v={sg.communication.deadline} max={sg.communication.deadline_max} />
+              <SubPart label={t(`${k}.commProgress`)} v={cm.progress} max={cm.progress_max} />
+              <SubPart label={t(sg.overdue ? `${k}.commDeadlineOverdue` : `${k}.commDeadline`)} v={cm.deadline} max={cm.deadline_max} />
             </ul>
           )}
         </Part>
       </ul>
       <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-control bg-neutral-soft p-2 text-sm">
         <span className={minus.length ? 'text-danger' : 'text-ink-muted'}>
-          {minus.length ? `${t('projectRewards.score.auto.deductions')}: ${minus.join(' · ')}` : t('projectRewards.score.auto.noDeductions')}
+          {minus.length ? `${t(`${k}.deductions`)}: ${minus.join(' · ')}` : t(`${k}.noDeductions`)}
         </span>
         <span className="tabular font-bold text-ink">{t('projectRewards.score.total', { total: c.total })}</span>
       </div>
@@ -306,7 +280,7 @@ export function WeeklyScorePanel({ p, rules }: { p: ProjectRef; rules: ScoringRu
                   <th className="py-1 pr-2 font-medium">{t('projectRewards.score.col.week')}</th>
                   <th className="py-1 pr-2 font-medium">{t('projectRewards.score.col.progress')}</th>
                   <th className="py-1 pr-2 font-medium">{t('projectRewards.score.col.target')}</th>
-                  <th className="py-1 pr-2 font-medium">{t('projectRewards.score.col.qdc')}</th>
+                  <th className="py-1 pr-2 font-medium">{t('projectRewards.score.col.dc')}</th>
                   <th className="py-1 pr-2 font-medium">{t('projectRewards.score.col.minus')}</th>
                   <th className="py-1 font-medium">{t('projectRewards.score.col.total')}</th>
                 </tr>
@@ -326,7 +300,7 @@ export function WeeklyScorePanel({ p, rules }: { p: ProjectRef; rules: ScoringRu
                       {r2(c.progress_end - c.progress_start)} / {c.required_pct}%
                     </td>
                     <td className="py-1 pr-2">{c.target_points}</td>
-                    <td className="py-1 pr-2">{c.quality} · {c.deadline} · {c.communication}</td>
+                    <td className="py-1 pr-2">{c.deadline} · {c.communication}</td>
                     <td className="py-1 pr-2 text-danger">{c.deductions ? `−${c.deductions}` : '0'}</td>
                     <td className="py-1"><Badge tone={scoreTone(c.total)}>{c.total}</Badge></td>
                   </tr>

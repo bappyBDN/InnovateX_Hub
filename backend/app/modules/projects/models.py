@@ -91,13 +91,13 @@ class ProjectScorecard(Base, StdColumns):
     progress_end = num()                             # % complete when the week was scored
     weeks_left = mapped_column(Integer, nullable=True)
     required_pct = num()                             # weekly required progress (percentage points)
-    quality = num()                                  # 0..25
-    deadline = num()                                 # 0..15
-    communication = num()                            # 0..10
+    quality = num()                                  # no longer scored (kept for old rows)
+    deadline = num()                                 # 0..20
+    communication = num()                            # 0..15
     missed_deadlines = mapped_column(Integer, default=0)
-    rework = mapped_column(Integer, default=0)
+    rework = mapped_column(Integer, default=0)       # no longer scored (kept for old rows)
     missing_updates = mapped_column(Integer, default=0)
-    target_points = num()                            # 0..50, calculated
+    target_points = num()                            # 0..65, calculated
     deductions = num()                               # calculated
     total = num()                                    # 0..100, calculated
     note = text()
