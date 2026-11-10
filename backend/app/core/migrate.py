@@ -23,6 +23,10 @@ ADDED_COLUMNS = (
     ("projects", "processes", "JSON"),
     ("projects", "phases", "JSON"),
     ("project_challenges", "recipients", "JSON"),
+    # Weekly scorecards: progress at the start of the week
+    ("projects", "week_baseline", "JSON"),
+    ("project_scorecards", "signals", "JSON"),
+    ("project_scorecards", "is_final", "BOOLEAN DEFAULT FALSE"),
     # ProjectFlow single sign-on (see backend/migrations/2026-11-09_projectflow_sso.sql)
     ("users", "projectflow_user_id", "INTEGER"),
     ("users", "is_projectflow_native", "BOOLEAN DEFAULT FALSE"),

@@ -3,7 +3,7 @@
 `projects` is a local copy of the ProjectFlow projects that pass the filter (Digital Transformation department,
 AI Analyst / AI analytics function, manager in the same), extended with the progress-sync columns. ProjectFlow is only
 ever read; everything written here lives in this app's database."""
-from sqlalchemy import DateTime, Index, Integer, Numeric, UniqueConstraint
+from sqlalchemy import Date, DateTime, Index, Integer, Numeric, UniqueConstraint
 from sqlalchemy.orm import mapped_column
 
 from app.shared.models.base import Base, StdColumns, flag, json_col, num, ref, sc, text, ts, utcnow
@@ -45,6 +45,7 @@ class Project(Base, StdColumns):
     pb_id = sc(120, nullable=True, index=True)      # project id in Process Brain (PRJ-0001, AES-buildstrong)
     processes = json_col(list)                      # linked process groups: sub-processes and RACI people
     phases = json_col()                             # {req, dev, test, go} as 0..1
+    week_baseline = json_col()                      # {week, pct}: progress when this week began (weekly score)
 
 
 class ProjectMember(Base, StdColumns):
@@ -77,3 +78,28 @@ class ProjectChallenge(Base, StdColumns):
     notified = json_col(list)                       # [{name, email, role}] the alert went to
     recipients = json_col(list)                     # [{key, name, email, role}] everyone chosen for the reward
     # created_at comes from StdColumns
+
+
+class ProjectScorecard(Base, StdColumns):
+    """One week's team score for a project, worked out automatically on every sync (rules in scoring.py).
+    One row per project and week; the current week is the score so far and is final once the week is over."""
+    __tablename__ = "project_scorecards"
+    __table_args__ = (UniqueConstraint("project_id", "week_start", name="uq_project_scorecard_week"),)
+    project_id = ref(False)
+    week_start = mapped_column(Date)                 # first day of the week (company time zone)
+    progress_start = num()                           # % complete when the week began
+    progress_end = num()                             # % complete when the week was scored
+    weeks_left = mapped_column(Integer, nullable=True)
+    required_pct = num()                             # weekly required progress (percentage points)
+    quality = num()                                  # 0..25
+    deadline = num()                                 # 0..15
+    communication = num()                            # 0..10
+    missed_deadlines = mapped_column(Integer, default=0)
+    rework = mapped_column(Integer, default=0)
+    missing_updates = mapped_column(Integer, default=0)
+    target_points = num()                            # 0..50, calculated
+    deductions = num()                               # calculated
+    total = num()                                    # 0..100, calculated
+    note = text()
+    signals = json_col()                             # what the score was worked out from (tasks, update days, …)
+    is_final = flag(False)                           # the week is over: no longer recalculated

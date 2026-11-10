@@ -13,6 +13,10 @@ POST /projects/{id}/sync               re-read one project from ProjectFlow (pro
 POST /projects/{id}/challenge          set (or update) the reward challenge and email the PM and Team Lead
 POST /projects/{id}/team-lead          choose the Team Lead among the members
 
+Weekly scorecards (rules in scoring.py) are automatic: every sync (daily run, Import, Sync) scores the week from the
+project's progress, task deadlines, blockers and update activity, out of 100. At the deadline the average score of
+the challenge's weeks sets the multiplier on the reward amount (the base bonus).
+
 Process Brain (read only) adds the AES team's projects and, for AI and AES projects alike, the team, delivery phases
 and the linked process groups with their sub-processes and RACI people. A reward challenge can go to any of the
 project's people, the RACI people of its processes and the AES team lead (Admin → Settings).
@@ -21,7 +25,7 @@ import hmac
 import re
 import threading
 from dataclasses import dataclass
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -39,8 +43,8 @@ from app.core.permissions import get_current_user
 from app.modules.admin.models import SystemSetting
 from app.modules.identity.models import User
 from app.modules.notifications.models import NotificationOutbox
-from app.modules.projects import process_brain, sources
-from app.modules.projects.models import Project, ProjectChallenge, ProjectMember
+from app.modules.projects import process_brain, scoring, sources
+from app.modules.projects.models import Project, ProjectChallenge, ProjectMember, ProjectScorecard
 from app.shared.models.base import iso, utcnow
 from app.shared.util import setting
 
@@ -141,6 +145,197 @@ def _load(db: Session, projects: list[Project]) -> tuple[dict, dict]:
     return members, challenges
 
 
+def _load_scores(db: Session, projects: list[Project]) -> dict[str, list[ProjectScorecard]]:
+    """Scorecards of many projects in one query, newest week first."""
+    ids = [p.id for p in projects]
+    out: dict[str, list[ProjectScorecard]] = {}
+    if ids:
+        for s in db.scalars(select(ProjectScorecard).where(ProjectScorecard.project_id.in_(ids))
+                            .order_by(ProjectScorecard.week_start.desc())):
+            out.setdefault(s.project_id, []).append(s)
+    return out
+
+
+def _week_start_day(db: Session) -> str:
+    day = str(setting(db, "projects_score_week_start", "Saturday") or "Saturday").strip().capitalize()
+    return day if day in scoring.WEEKDAYS else "Saturday"
+
+
+def _this_week(db: Session) -> date:
+    return scoring.week_start(scoring.local_date(utcnow()), _week_start_day(db))
+
+
+def _deadline(p: Project, challenges: list[ProjectChallenge]) -> datetime | None:
+    """The date the team works towards: the active reward challenge's deadline, else the project deadline."""
+    active = next((c for c in challenges if c.status == "Active"), None)
+    return (active.target_date if active else None) or p.due_date
+
+
+# ---- Automatic weekly score ---------------------------------------------------------------------------------------
+# `projects.week_baseline` follows the project through the week:
+#   {week, pct, tasks: {task id: [progress, status]} at the start of the week, last: the state after the latest sync,
+#    update_days: days this week a sync found a change, rework: tasks that went back, prev: the week that just ended}
+# Every sync (daily automatic run, Import, Sync) updates it and recalculates the week's scorecard.
+
+def _snapshot(p: Project) -> dict:
+    return {"pct": float(p.completion_percentage or 0),
+            "tasks": {str(t["id"]): [t.get("progress") or 0, (t.get("status") or "").lower()] for t in p.tasks or []}}
+
+
+def _roll_week(db: Session, p: Project) -> None:
+    """Before a sync changes anything: on the first sync of a new week, start the new week from the current state and
+    keep the week that ended (to score it one last time)."""
+    week = _this_week(db).isoformat()
+    base = p.week_baseline or {}
+    if p.imported_at is None or not base.get("week") or base.get("week") == week:
+        return                                       # never tracked yet: _track_change starts the week
+    snap = _snapshot(p)
+    new = {"week": week, "pct": snap["pct"], "tasks": snap["tasks"], "last": snap, "update_days": [], "rework": []}
+    if base.get("week") and "last" in base:
+        new["prev"] = {k: v for k, v in base.items() if k != "prev"}
+    p.week_baseline = new
+
+
+def _track_change(db: Session, p: Project) -> None:
+    """After a sync: note the day if anything changed, and any task whose progress went back (re-work)."""
+    base = dict(p.week_baseline or {})
+    snap = _snapshot(p)
+    if not base.get("week"):                         # first import: the week starts here
+        p.week_baseline = {"week": _this_week(db).isoformat(), "pct": snap["pct"], "tasks": snap["tasks"],
+                           "last": snap, "update_days": [], "rework": [],
+                           "tracked_from": scoring.local_date(utcnow()).isoformat()}
+        return
+    last = base.get("last")
+    if last is None:                                 # tracked before tasks were: start tracking from now
+        base.update(last=snap, tasks=base.get("tasks") or snap["tasks"], update_days=[], rework=[],
+                    tracked_from=scoring.local_date(utcnow()).isoformat())
+        p.week_baseline = base
+        return
+    rework = set(base.get("rework") or [])
+    for tid, (progress, status) in snap["tasks"].items():
+        old = (last.get("tasks") or {}).get(tid)
+        if old and (progress < old[0] or (old[1] == "completed" and status != "completed")):
+            rework.add(tid)
+    if snap["pct"] < (last.get("pct") or 0):
+        rework.add("project")
+    days = list(base.get("update_days") or [])
+    today = scoring.local_date(utcnow()).isoformat()
+    if snap != last and today not in days:
+        days.append(today)
+    base.update(last=snap, update_days=days, rework=sorted(rework))
+    p.week_baseline = base
+
+
+def _score_week(db: Session, p: Project, challenges: list[ProjectChallenge], week: date, base: dict,
+                final: bool) -> ProjectScorecard | None:
+    """Work out (or recalculate) one week's scorecard from the project's data."""
+    s = db.scalar(select(ProjectScorecard).where(ProjectScorecard.project_id == p.id,
+                                                 ProjectScorecard.week_start == week))
+    if s and s.is_final:
+        return s
+    start = float(base.get("pct") or 0)
+    if final:
+        end = float((base.get("last") or {}).get("pct", p.completion_percentage or 0))
+    else:
+        end = float(p.completion_percentage or 0)
+    deadline = _deadline(p, challenges)
+    weeks = scoring.weeks_left(week, scoring.local_date(deadline) if deadline else None)
+    required = scoring.required_pct(start, weeks)
+    if required is None:
+        return None                                  # no deadline: no weekly target to measure against
+    today = scoring.local_date(utcnow())
+    r = scoring.auto_score(
+        week=week, as_of=week + timedelta(days=6) if final else today, progress_start=start, progress_end=end,
+        required=required, tasks=p.tasks or [], start=scoring.local_date(p.start_date) if p.start_date else None,
+        deadline=scoring.local_date(deadline) if deadline else None,
+        update_days=len(base.get("update_days") or []), rework=len(base.get("rework") or []),
+        partial=bool(base.get("tracked_from")) and base["tracked_from"] > week.isoformat())
+    if not s:
+        s = ProjectScorecard(project_id=p.id, week_start=week)
+        db.add(s)
+    s.progress_start, s.progress_end, s.weeks_left, s.required_pct = start, end, weeks, required
+    s.quality, s.deadline, s.communication = r["quality"], r["deadline"], r["communication"]
+    s.missed_deadlines, s.rework, s.missing_updates = r["missed_deadlines"], r["rework"], r["missing_updates"]
+    s.target_points, s.deductions, s.total = r["target_points"], r["deductions"], r["total"]
+    s.signals, s.is_final = r["signals"], final
+    return s
+
+
+def _auto_score(db: Session, p: Project, challenges: list[ProjectChallenge]) -> None:
+    """Score the week that just ended (final) and the current week so far."""
+    base = dict(p.week_baseline or {})
+    prev = base.pop("prev", None)
+    if prev and prev.get("week"):
+        _score_week(db, p, challenges, date.fromisoformat(prev["week"]), prev, final=True)
+        p.week_baseline = base
+    if base.get("week") and base.get("last") is not None:
+        _score_week(db, p, challenges, date.fromisoformat(base["week"]), base, final=False)
+
+
+def _week_figures(p: Project, week: date, scores: list[ProjectScorecard], challenges: list[ProjectChallenge],
+                  this_week: date) -> dict:
+    """Starting progress, weeks left and weekly required progress for one week (the defaults of its scorecard)."""
+    prev = next((s for s in scores if s.week_start == week - timedelta(days=7)), None)
+    base = p.week_baseline or {}
+    current = float(p.completion_percentage or 0)
+    if base.get("week") == week.isoformat():
+        start = float(base.get("pct") or 0)
+    elif prev and prev.progress_end is not None:
+        start = prev.progress_end
+    else:
+        start = current
+    deadline = _deadline(p, challenges)
+    weeks = scoring.weeks_left(week, scoring.local_date(deadline) if deadline else None)
+    return {"week_start": week.isoformat(), "progress_start": start,
+            "progress_end": current if week >= this_week else start,
+            "weeks_left": weeks, "required_pct": scoring.required_pct(start, weeks),
+            "deadline": iso(deadline)}
+
+
+def _scorecard_out(s: ProjectScorecard) -> dict:
+    return {"id": s.id, "week_start": iso(s.week_start), "progress_start": s.progress_start,
+            "progress_end": s.progress_end, "weeks_left": s.weeks_left, "required_pct": s.required_pct,
+            "quality": s.quality, "deadline": s.deadline, "communication": s.communication,
+            "missed_deadlines": s.missed_deadlines, "rework": s.rework, "missing_updates": s.missing_updates,
+            "target_points": s.target_points, "deductions": s.deductions, "total": s.total,
+            "signals": s.signals or {}, "is_final": bool(s.is_final), "updated_at": iso(s.updated_at)}
+
+
+def _challenge_scores(c: ProjectChallenge, scores: list[ProjectScorecard], start_day: str) -> list[ProjectScorecard]:
+    """The weeks that count for a challenge: from the week it was set up to its deadline (or achievement)."""
+    first = scoring.week_start(scoring.local_date(c.created_at or utcnow()), start_day)
+    end = c.achieved_at or c.target_date
+    last = scoring.local_date(end) if end else None
+    return [s for s in scores if s.week_start >= first and (last is None or s.week_start <= last)]
+
+
+def _bonus(c: ProjectChallenge | None, scores: list[ProjectScorecard], start_day: str) -> dict | None:
+    """Average weekly score of the challenge, its multiplier and the bonus: paid on Achieved, nothing on Expired,
+    projected while Active."""
+    if not c:
+        return None
+    counted = _challenge_scores(c, scores, start_day)
+    avg = round(sum(s.total or 0 for s in counted) / len(counted), 2) if counted else None
+    mult = scoring.multiplier(avg)
+    base = float(c.reward_amount or 0)
+    amount = None if mult is None else round(base * mult, 2)
+    if c.status == "Expired":
+        amount = 0.0
+    return {"challenge_id": c.challenge_id, "status": c.status, "base": base, "average": avg,
+            "weeks": len(counted), "multiplier": mult, "amount": amount,
+            "final": c.status != "Active"}
+
+
+def _scoring_out(p: Project, challenges: list[ProjectChallenge], scores: list[ProjectScorecard], this_week: date,
+                 start_day: str) -> dict:
+    current = next((c for c in challenges if c.status == "Active"), challenges[0] if challenges else None)
+    return {**_week_figures(p, this_week, scores, challenges, this_week),
+            "this_week": next((_scorecard_out(s) for s in scores if s.week_start == this_week), None),
+            "average": round(sum(s.total or 0 for s in scores) / len(scores), 2) if scores else None,
+            "bonus": _bonus(current, scores, start_day),
+            "scorecards": [_scorecard_out(s) for s in scores]}
+
+
 def _challenge_out(c: ProjectChallenge) -> dict:
     return {"id": c.id, "challenge_id": c.challenge_id, "reward_amount": float(c.reward_amount or 0),
             "target_date": iso(c.target_date), "target_percentage": c.target_percentage, "status": c.status,
@@ -176,7 +371,7 @@ def _candidates(p: Project, members: list[ProjectMember], aes_lead: dict | None)
 
 
 def _out(p: Project, members: list[ProjectMember], challenges: list[ProjectChallenge],
-         aes_lead: dict | None = None) -> dict:
+         aes_lead: dict | None = None, scoring_out: dict | None = None) -> dict:
     current = next((c for c in challenges if c.status == "Active"), challenges[0] if challenges else None)
     pct = max(0, min(100, p.completion_percentage or 0))
     tasks = p.tasks or []
@@ -202,6 +397,7 @@ def _out(p: Project, members: list[ProjectMember], challenges: list[ProjectChall
         "team": p.team, "pb_id": p.pb_id, "progress_source": p.progress_source,
         "phases": p.phases or {}, "processes": p.processes or [],
         "candidates": _candidates(p, members, aes_lead),
+        "scoring": scoring_out,
     }
 
 
@@ -216,7 +412,11 @@ def _one(db: Session, p: Project) -> dict:
     members, challenges = _load(db, [p])
     if _refresh_statuses(db, p, challenges.get(p.id, [])):
         db.commit()
-    return _out(p, members.get(p.id, []), challenges.get(p.id, []), _aes_lead(db))
+    scores = _load_scores(db, [p])
+    start_day = _week_start_day(db)
+    this_week = scoring.week_start(scoring.local_date(utcnow()), start_day)
+    return _out(p, members.get(p.id, []), challenges.get(p.id, []), _aes_lead(db),
+                _scoring_out(p, challenges.get(p.id, []), scores.get(p.id, []), this_week, start_day))
 
 
 # ---- Read -------------------------------------------------------------------------------------------------------
@@ -234,8 +434,14 @@ def list_projects(include_ineligible: bool = False, team: Literal["AI", "AES"] |
     if any([_refresh_statuses(db, p, challenges.get(p.id, [])) for p in projects]):
         db.commit()
     aes_lead = _aes_lead(db)
-    return {"items": [_out(p, members.get(p.id, []), challenges.get(p.id, []), aes_lead) for p in projects],
-            "can_manage": actor.can_manage, "aes_lead": aes_lead}
+    scores = _load_scores(db, projects)
+    start_day = _week_start_day(db)
+    this_week = scoring.week_start(scoring.local_date(utcnow()), start_day)
+    return {"items": [_out(p, members.get(p.id, []), challenges.get(p.id, []), aes_lead,
+                           _scoring_out(p, challenges.get(p.id, []), scores.get(p.id, []), this_week, start_day))
+                      for p in projects],
+            "can_manage": actor.can_manage, "aes_lead": aes_lead,
+            "scoring_rules": {**scoring.RULES, "week_start_day": start_day, "this_week": this_week.isoformat()}}
 
 
 @router.get("/projects/meta")
@@ -356,7 +562,7 @@ def apply_aes_team_lead(db: Session) -> int:
 
 def _delete_project(db: Session, p: Project) -> None:
     """Gone from every source it came from: removed here too, with its people and reward challenges."""
-    for model in (ProjectMember, ProjectChallenge):
+    for model in (ProjectMember, ProjectChallenge, ProjectScorecard):
         for row in db.scalars(select(model).where(model.project_id == p.id)):
             db.delete(row)
     db.delete(p)
@@ -384,14 +590,17 @@ def _reconcile(db: Session, p: Project, pf: tuple[bool, dict | None], pb: tuple[
         p.pb_id, p.processes, p.phases = None, [], {}
     if not pf_row and not pb_row:
         return "kept"
+    _roll_week(db, p)                                # a new week starts from the state before this sync
     if pf_row and p.external_id is not None:
         _fill(p, pf_row, now)
         p.team = p.team or "AI"                      # the ProjectFlow filter is the AI analysis function
         _upsert_members(db, p, pf_row, members)
     if pb_row:
         _fill_pb(db, p, pb_row, now, members)
+    _track_change(db, p)
     p.imported_at = now
     _follow_deadline(p, challenges)
+    _auto_score(db, p, challenges)
     return "updated"
 
 
@@ -728,6 +937,7 @@ def set_challenge(project_id: str, body: ChallengeIn, request: Request, actor: A
                      "target_percentage": body.target_percentage, "completion": p.completion_percentage or 0,
                      "action": action, "note": "\n".join(x for x in (source_note, c.note) if x),
                      "set_by": actor.name}}))
+    _auto_score(db, p, [c] + [x for x in challenges.get(p.id, []) if x is not c])   # the deadline may have moved
     audit(db, actor.id, "CREATE" if action == "set" else "UPDATE", "project_challenge", c.id,
           f"Reward challenge {c.challenge_id} {action} on {p.code}: ৳{amount} by {local:%Y-%m-%d} ({body.deadline_source})",
           {"reward_amount": amount, "target_date": iso(target), "deadline_source": body.deadline_source},

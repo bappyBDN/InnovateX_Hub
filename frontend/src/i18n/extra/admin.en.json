@@ -390,7 +390,8 @@
         "projects_auto_sync_time": "Daily project sync time (HH:MM)",
         "projects_last_auto_sync": "Last daily project sync",
         "aes_team_lead_designation": "AES team lead — designation",
-        "aes_team_lead_employee_id": "AES team lead — employee number"
+        "aes_team_lead_employee_id": "AES team lead — employee number",
+        "projects_score_week_start": "Weekly scorecard: first day of the week"
       },
       "flag": {
         "PEOPLES_CHOICE": "People's Choice voting",

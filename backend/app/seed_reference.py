@@ -256,6 +256,8 @@ LATER_SETTINGS = [
      "Brain automatically once a day. Projects removed there are removed here too."),
     ("projects_auto_sync_time", "06:00", "Time of the daily automatic project import and sync (HH:MM, Asia/Dhaka)."),
     ("projects_last_auto_sync", "", "Filled in by the system: when the daily project import last ran and its result."),
+    ("projects_score_week_start", "Saturday", "First day of the week for the Project Rewards weekly scorecards "
+     "(Saturday, Sunday, Monday, …)."),
 ]
 
 

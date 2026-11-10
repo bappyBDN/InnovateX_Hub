@@ -390,7 +390,8 @@
         "projects_auto_sync_time": "দৈনিক প্রজেক্ট সিঙ্কের সময় (HH:MM)",
         "projects_last_auto_sync": "শেষ দৈনিক প্রজেক্ট সিঙ্ক",
         "aes_team_lead_designation": "AES টিম লিড — পদবি",
-        "aes_team_lead_employee_id": "AES টিম লিড — কর্মী নম্বর"
+        "aes_team_lead_employee_id": "AES টিম লিড — কর্মী নম্বর",
+        "projects_score_week_start": "সাপ্তাহিক স্কোরকার্ড: সপ্তাহের প্রথম দিন"
       },
       "flag": {
         "PEOPLES_CHOICE": "পিপলস চয়েস ভোটিং",

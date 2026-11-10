@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import {
-  CheckCircle2, ChevronDown, Clock, Database, DownloadCloud, Gift, RefreshCw, Search, Trophy, Users,
+  AlertTriangle, CheckCircle2, ChevronDown, Clock, Database, DownloadCloud, Gift, RefreshCw, Search, Trophy, Users, XCircle,
 } from 'lucide-react';
 import { useId, useMemo, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +15,7 @@ import {
 import { useServerTime } from '@/hooks';
 import { cn } from '@/utils/cn';
 import { DISPLAY_TZ, formatDate, formatDateTime, relativeFromNow } from '@/utils/dates';
+import { WeeklyScorePanel, type Scoring, type ScoringRules } from './WeeklyScore';
 
 type ChallengeStatus = 'Active' | 'Achieved' | 'Expired';
 
@@ -103,6 +104,7 @@ interface Project {
   phases: Partial<Record<'req' | 'dev' | 'test' | 'go', number>>;
   processes: ProcessLink[];
   candidates: Candidate[];
+  scoring: Scoring | null;
 }
 
 interface ProjectDetails {
@@ -143,6 +145,7 @@ interface ListResponse {
   items: Project[];
   can_manage: boolean;
   aes_lead: { key: string; name: string; email: string | null } | null;
+  scoring_rules?: ScoringRules;
 }
 
 interface ImportResult {
@@ -169,8 +172,57 @@ const bdt = (n: number) => `৳${n.toLocaleString('en-IN', { maximumFractionDigi
 
 // ---- Small pieces ------------------------------------------------------------------------------------------------
 
-function ProgressBar({ value, label }: { value: number; label: string }) {
-  const tone = value >= 100 ? 'bg-success' : value >= ALMOST ? 'bg-warning' : 'bg-primary';
+/** Past its deadline and not finished: the reward (if there was one) is missed. */
+type Missed = { kind: 'reward'; amount: number; date: string; days: number } | { kind: 'deadline'; date: string; days: number };
+
+function missedState(p: Project, now: number): Missed | null {
+  if (p.completion_percentage >= 100 || p.status === 'completed') return null;
+  const days = (iso: string) => Math.max(0, Math.floor((now - new Date(iso).getTime()) / 86_400_000));
+  const c = p.challenge;
+  if (c && (c.status === 'Expired' || (c.status === 'Active' && new Date(c.target_date).getTime() < now))) {
+    return { kind: 'reward', amount: c.reward_amount, date: c.target_date, days: days(c.target_date) };
+  }
+  if (c?.status === 'Active') return null;      // a challenge still running sets the deadline that counts
+  if (p.due_date && new Date(p.due_date).getTime() < now) return { kind: 'deadline', date: p.due_date, days: days(p.due_date) };
+  return null;
+}
+
+function MissedBadge({ m }: { m: Missed }) {
+  const { t } = useTranslation();
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-danger-soft px-2.5 py-1 text-xs font-semibold text-danger ring-1 ring-danger/40" role="status">
+      <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+      {m.kind === 'reward' ? t('projectRewards.missed.badgeReward') : t('projectRewards.missed.badgeDeadline')}
+    </span>
+  );
+}
+
+function MissedBanner({ m, canManage, onEdit }: { m: Missed; canManage: boolean; onEdit: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-control border border-danger/40 bg-danger-soft p-3 text-sm text-danger" role="alert">
+      <span className="flex items-start gap-2">
+        <XCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        <span>
+          <span className="block font-semibold">
+            {m.kind === 'reward' ? t('projectRewards.missed.reward', { amount: bdt(m.amount) }) : t('projectRewards.missed.deadline')}
+          </span>
+          <span className="block text-ink">
+            {t('projectRewards.missed.since', { date: formatDate(m.date), count: m.days })}
+          </span>
+        </span>
+      </span>
+      {canManage && (
+        <Button size="sm" variant="secondary" onClick={onEdit}>
+          {t('projectRewards.newChallenge')}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function ProgressBar({ value, label, missed }: { value: number; label: string; missed?: boolean }) {
+  const tone = value >= 100 ? 'bg-success' : missed ? 'bg-danger' : value >= ALMOST ? 'bg-warning' : 'bg-primary';
   return (
     <div
       role="progressbar"
@@ -326,15 +378,17 @@ function SyncPanel({ p, canManage }: { p: Project; canManage: boolean }) {
 
 // ---- Project card ------------------------------------------------------------------------------------------------
 
-function ProjectCard({ p, canManage, onChallenge }: {
-  p: Project; canManage: boolean; onChallenge: () => void;
+function ProjectCard({ p, canManage, rules, onChallenge }: {
+  p: Project; canManage: boolean; rules: ScoringRules | undefined; onChallenge: () => void;
 }) {
   const { t } = useTranslation();
   const pm = p.members.filter((m) => m.role === 'Project Manager');
   const tl = p.members.filter((m) => m.role === 'Team Lead');
   const devs = p.members.filter((m) => m.role === 'Developer');
+  const now = useServerTime(60_000).getTime();
+  const missed = missedState(p, now);
   return (
-    <Card className="flex h-full flex-col gap-4">
+    <Card className={cn('flex h-full flex-col gap-4', missed && 'border-danger bg-danger-soft/30 ring-1 ring-danger/50')}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="tabular text-xs text-ink-muted">
@@ -344,7 +398,7 @@ function ProjectCard({ p, canManage, onChallenge }: {
           <h2 className="text-lg font-semibold text-ink">{p.name}</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {p.completion_percentage >= ALMOST && <AlmostBadge />}
+          {missed ? <MissedBadge m={missed} /> : p.completion_percentage >= ALMOST && <AlmostBadge />}
           {p.team && <Badge tone={p.team === 'AES' ? 'spark' : 'info'}>{t(`projectRewards.teamBadge.${p.team}`)}</Badge>}
           {p.status && <Badge tone={p.status === 'completed' ? 'success' : p.status === 'active' ? 'primary' : 'neutral'}>{t(`projectRewards.status.${p.status}`, p.status)}</Badge>}
           {p.health && <Badge tone={p.health === 'green' ? 'success' : p.health === 'amber' ? 'warning' : 'danger'}>{t(`projectRewards.health.${p.health}`, p.health)}</Badge>}
@@ -356,13 +410,21 @@ function ProjectCard({ p, canManage, onChallenge }: {
           <span className="tabular text-2xl font-bold text-ink">{p.completion_percentage}%</span>
           <span className="text-sm text-ink-muted">{t('projectRewards.remaining', { pct: p.remaining_percentage })}</span>
         </div>
-        <ProgressBar value={p.completion_percentage} label={t('projectRewards.progressOf', { name: p.name })} />
-        {p.due_date && <p className="mt-1 text-xs text-ink-muted">{t('projectRewards.dueOn', { date: formatDate(p.due_date) })}</p>}
+        <ProgressBar value={p.completion_percentage} label={t('projectRewards.progressOf', { name: p.name })} missed={!!missed} />
+        {p.due_date && (
+          <p className={cn('mt-1 text-xs', missed ? 'font-semibold text-danger' : 'text-ink-muted')}>
+            {missed?.kind === 'deadline'
+              ? t('projectRewards.missed.overdue', { date: formatDate(p.due_date), count: missed.days })
+              : t('projectRewards.dueOn', { date: formatDate(p.due_date) })}
+          </p>
+        )}
       </div>
 
       <Phases phases={p.phases} />
 
-      {p.challenge ? (
+      {missed ? (
+        <MissedBanner m={missed} canManage={canManage} onEdit={onChallenge} />
+      ) : p.challenge ? (
         <RewardBanner c={p.challenge} canManage={canManage} onEdit={onChallenge} />
       ) : (
         canManage && (
@@ -371,6 +433,8 @@ function ProjectCard({ p, canManage, onChallenge }: {
           </Button>
         )
       )}
+
+      <WeeklyScorePanel p={p} rules={rules} />
 
       {/* Same card for every team: ProjectFlow's details and task list fold away like the processes. */}
       {p.tasks.length > 0 ? (
@@ -896,7 +960,8 @@ export default function ProjectRewardsPage() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [q, setQ] = useState('');
-  const [view, setView] = useState<'all' | 'almost' | 'challenge' | 'none'>('all');
+  const [view, setView] = useState<'all' | 'almost' | 'challenge' | 'none' | 'missed'>('all');
+  const nowMs = useServerTime(60_000).getTime();
   const [team, setTeam] = useState<'all' | Team>('all');
   const [challengeFor, setChallengeFor] = useState<Project | null>(null);
 
@@ -926,14 +991,15 @@ export default function ProjectRewardsPage() {
       ...p.processes.flatMap((g) => [g.process_group, g.wing, ...g.subprocesses, ...g.raci.map((r) => r.name)]),
     ];
     if (term && !searchable.some((s) => s?.toLowerCase().includes(term))) return false;
-    if (view === 'almost') return p.completion_percentage >= ALMOST;
+    if (view === 'almost') return p.completion_percentage >= ALMOST && !missedState(p, nowMs);
+    if (view === 'missed') return !!missedState(p, nowMs);
     if (view === 'challenge') return p.challenge?.status === 'Active';
     if (view === 'none') return !p.challenge || p.challenge.status !== 'Active';
     return true;
   });
   const active = items.filter((p) => p.challenge?.status === 'Active');
   const pool = active.reduce((s, p) => s + (p.challenge?.reward_amount ?? 0), 0);
-  const almost = items.filter((p) => p.completion_percentage >= ALMOST).length;
+  const almost = items.filter((p) => p.completion_percentage >= ALMOST && !missedState(p, nowMs)).length;
 
   return (
     <>
@@ -992,7 +1058,7 @@ export default function ProjectRewardsPage() {
           aria-label={t('projectRewards.show')}
           value={view}
           onChange={(e) => setView(e.target.value as typeof view)}
-          options={(['all', 'almost', 'challenge', 'none'] as const).map((v) => ({ value: v, label: t(`projectRewards.views.${v}`) }))}
+          options={(['all', 'almost', 'challenge', 'none', 'missed'] as const).map((v) => ({ value: v, label: t(`projectRewards.views.${v}`) }))}
         />
       </div>
 
@@ -1021,7 +1087,7 @@ export default function ProjectRewardsPage() {
         <ul className="grid gap-4 lg:grid-cols-2">
           {shown.map((p) => (
             <li key={p.id}>
-              <ProjectCard p={p} canManage={canManage} onChallenge={() => setChallengeFor(p)} />
+              <ProjectCard p={p} canManage={canManage} rules={list.data?.scoring_rules} onChallenge={() => setChallengeFor(p)} />
             </li>
           ))}
         </ul>
