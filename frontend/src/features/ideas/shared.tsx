@@ -192,7 +192,7 @@ export function useOrgUnits() {
 }
 
 /** Ideas the owner can no longer act on. */
-export const CLOSED_STATES = ['CLOSED', 'NOT_SELECTED', 'DUPLICATE'];
+export const CLOSED_STATES = ['CLOSED', 'NOT_SELECTED'];
 
 // ---- People picker: shows name and department only -----------------------------------------
 export function UserPicker({

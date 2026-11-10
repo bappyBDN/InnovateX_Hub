@@ -44,6 +44,35 @@ class Settings(BaseSettings):
     demo_mode: bool = True
     demo_password: str = "Password@123"
     seed_on_start: bool = True
+    # With SEED_ON_START=false an empty database gets only reference data and this one Super Admin
+    admin_email: str = ""
+    admin_password: str = ""
+    admin_name: str = "System Admin"
+
+    # Single sign-on from ProjectFlow: the same secret must be set in ProjectFlow (at least 32 characters; empty = off)
+    shared_sso_secret: str = ""
+    projectflow_url: str = ""                      # where "Back to ProjectFlow" goes from the sign-on page
+    # ProjectFlow roles (comma separated, any case) that get full access here
+    # In ProjectFlow the DMD has the role "group_executive" ("dmd" is accepted too)
+    sso_dmd_roles: str = "group_executive,dmd"                  # -> DMD (every feature, same as Super Admin)
+    sso_admin_roles: str = "admin,coo,managing_director,director,md"   # -> Super Admin
+
+    # InovaRegistry: web scrapers send this in the X-Scraper-Key header to POST /scraper/ingest (empty = turned off)
+    scraper_api_key: str = ""
+
+    # Project rewards: projects are read (never written) from the ProjectFlow database
+    # ProjectFlow is read through its read-only Data API when these two are set (preferred: it can't change anything).
+    projectflow_api_url: str = ""
+    projectflow_api_key: str = ""
+    projectflow_database_url: str = ""              # fallback: direct database read, used only when the API is not set
+    projectflow_department: str = "Digital Transformation"   # project and its manager must be in this department
+    projectflow_function_pattern: str = "AI anal%"           # and in a function like this (AI Analyst, AI analytics, AI analysis)
+    # Process Brain (Anwar Group process registry): the AI and AES team projects with their linked processes,
+    # sub-processes and RACI. URL is the API base, e.g. https://host/api/process-brain; the projects come from the
+    # same host's /api/live feed.
+    process_brain_url: str = ""
+    process_brain_api_key: str = ""
+    data_api_key: str = ""          # machine access to /projects endpoints: send it in the X-API-Key header
 
     # Email (leave SMTP_HOST empty to only log deliveries)
     smtp_host: str = ""

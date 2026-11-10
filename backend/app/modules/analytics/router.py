@@ -21,9 +21,14 @@ from app.modules.notifications.models import NotificationDelivery, NotificationO
 from app.shared.access import initiative_role
 from app.shared import cache
 from app.shared.models.base import iso, utcnow
-from app.shared.util import en
+from app.shared.util import en, user_brief
 
 router = APIRouter(tags=["home, dashboards & search"])
+
+
+def _live(db: Session, model) -> list:
+    """All rows of a table that are not deleted, read once per request (see shared/cache.py)."""
+    return [r for r in cache.table(db, model) if getattr(r, "deleted_at", None) is None]
 
 
 def _my_entries(db: Session, cu: CurrentUser) -> list[ChallengeEntry]:
@@ -80,32 +85,124 @@ def _judge_block(db: Session, cu: CurrentUser) -> dict:
 def _program_block(db: Session) -> dict:
     now = utcnow()
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    challenges = db.scalars(select(Challenge).where(Challenge.deleted_at.is_(None))).all()
-    open_assignments = db.scalars(select(ReviewAssignment).where(ReviewAssignment.status.in_(["ASSIGNED", "IN_PROGRESS"]))).all()
+    challenges = _live(db, Challenge)
+    assignments = cache.table(db, ReviewAssignment)
+    open_assignments = [a for a in assignments if a.status in ("ASSIGNED", "IN_PROGRESS")]
+    judged = {a.entity_id for a in assignments if a.entity_type == "initiative"}
     return {
         "challenges_by_status": dict(Counter(c.status_code for c in challenges)),
-        "registrations_today": db.scalar(select(func.count()).select_from(ChallengeEntry).where(ChallengeEntry.registered_at >= today)) or 0,
-        "submissions_today": db.scalar(select(func.count()).select_from(EntrySubmission).where(EntrySubmission.submitted_at >= today)) or 0,
+        "registrations_today": sum(1 for e in cache.table(db, ChallengeEntry) if e.registered_at and e.registered_at >= today),
+        "submissions_today": sum(1 for x in cache.table(db, EntrySubmission) if x.submitted_at and x.submitted_at >= today),
         "reviews_open": len(open_assignments),
         "reviews_overdue": sum(1 for a in open_assignments if a.due_at and a.due_at < now),
-        "shortlists_waiting": db.scalar(select(func.count()).select_from(Shortlist).where(Shortlist.status.in_(["PROPOSED", "CONFIRMED"]))) or 0,
+        "shortlists_waiting": sum(1 for x in cache.table(db, Shortlist) if x.status in ("PROPOSED", "CONFIRMED")),
         "results_waiting": sum(1 for c in challenges if c.status_code == "RESULTS_PENDING_APPROVAL"),
-        "ideas_to_triage": db.scalar(select(func.count()).select_from(Initiative).where(
-            Initiative.current_state_code.in_(["SUBMITTED", "TRIAGE"]), Initiative.deleted_at.is_(None))) or 0,
+        # Ideas in review that no judge has yet (no default idea judges were set up when they came in).
+        "ideas_to_triage": sum(1 for i in _live(db, Initiative) if i.current_state_code == "UNDER_REVIEW" and i.id not in judged),
         "open_questions": 0,
     }
 
 
 def _executive_block(db: Session) -> dict:
-    challenges = db.scalars(select(Challenge).where(Challenge.deleted_at.is_(None), Challenge.status_code != "DRAFT")).all()
-    entries = db.scalars(select(ChallengeEntry).where(ChallengeEntry.status_code != "WITHDRAWN")).all()
-    ideas = db.scalars(select(Initiative).where(Initiative.deleted_at.is_(None), Initiative.current_state_code != "DRAFT")).all()
+    challenges = [c for c in _live(db, Challenge) if c.status_code != "DRAFT"]
+    entries = [e for e in cache.table(db, ChallengeEntry) if e.status_code != "WITHDRAWN"]
+    ideas = [i for i in _live(db, Initiative) if i.current_state_code != "DRAFT"]
     return {"active_challenges": sum(1 for c in challenges if c.status_code not in csvc.CLOSED_STATUSES),
             "entries": len(entries), "shortlisted": sum(1 for e in entries if csvc.STAGE_INDEX.get(e.status_code, 0) >= 4),
             "ideas": len(ideas), "pilots": sum(1 for i in ideas if i.current_state_code == "PILOT"),
-            "production": sum(1 for i in ideas if i.current_state_code in ("PRODUCTION", "IMPACT_VERIFIED", "SCALED")),
+            "production": sum(1 for i in ideas if i.current_state_code in ("PRODUCTION", "IMPACT_VERIFIED")),
             "reusable_assets": db.scalar(select(func.count()).select_from(ReusableAsset).where(ReusableAsset.is_published.is_(True))) or 0,
             **_impact_totals(db)}
+
+
+def _days(since, now) -> int | None:
+    return max(0, (now - since).days) if since else None
+
+
+def _action_groups(db: Session, now) -> list[dict]:
+    """What the innovation office has to do, item by item, oldest first. Each item says what it is, how long it has
+    waited and opens the exact page where the action is taken."""
+    from app.modules.delivery.models import AwardDecision
+    from app.modules.evaluation import gates as gsvc
+    from app.modules.evaluation.models import StageGate
+    groups: list[dict] = []
+
+    def group(key, tone, items, see_all):
+        items.sort(key=lambda i: -(i.get("waiting_days") or 0))
+        if items:
+            groups.append({"key": key, "tone": tone, "total": len(items), "items": items[:6], "see_all": see_all})
+
+    # 1. Ideas in review that nobody judges yet
+    assignments = cache.table(db, ReviewAssignment)
+    judged = {a.entity_id for a in assignments if a.entity_type == "initiative"}
+    ideas = [i for i in _live(db, Initiative) if i.current_state_code == "UNDER_REVIEW" and i.id not in judged]
+    group("ideas_need_judges", "warning", [
+        {"title": i.title, "code": i.code, "context": "Idea", "waiting_days": _days(i.current_stage_entered_at or i.submitted_at, now),
+         "link": f"/ideas/{i.code or i.id}", "action": "choose_judges"} for i in ideas], "/manage/ideas")
+
+    # 2. Demos and pilots that were submitted but have no judges
+    waiting_gates = []
+    for g in [x for x in cache.table(db, StageGate) if x.status == "SUBMITTED"]:
+        try:
+            subj = gsvc.Subject(db, g.entity_type, g.entity_id)
+        except Exception:   # noqa: BLE001 — the idea or entry was removed
+            continue
+        waiting_gates.append({"title": subj.title, "code": subj.code, "context": f"{gsvc.STAGE_TITLE[g.stage]} · {subj.context}",
+                              "waiting_days": _days(g.submitted_at, now), "link": subj.link, "action": "choose_judges"})
+    group("demos_need_judges", "warning", waiting_gates, "/admin/judges?tab=reviews")
+
+    # 3. Shortlists to confirm or publish
+    rounds = {r.id: r for r in cache.table(db, ReviewRound)}
+    challenges = {c.id: c for c in _live(db, Challenge)}
+    lists = []
+    for sl in [x for x in cache.table(db, Shortlist) if x.status in ("PROPOSED", "CONFIRMED")]:
+        rnd = rounds.get(sl.review_round_id)
+        ch = challenges.get(rnd.challenge_id) if rnd else None
+        if not ch:
+            continue
+        lists.append({"title": en(ch.title_i18n), "code": ch.code, "context": en(rnd.name_i18n),
+                      "waiting_days": _days(sl.confirmed_at if sl.status == "CONFIRMED" else (sl.generated_at or sl.created_at), now),
+                      "link": f"/manage/challenges/{ch.id}/shortlist/{sl.id}",
+                      "action": "publish_shortlist" if sl.status == "CONFIRMED" else "confirm_shortlist"})
+    group("shortlists", "warning", lists, "/manage/challenges")
+
+    # 4. Results to record or publish
+    decided = {d.challenge_id for d in cache.table(db, AwardDecision)}
+    results = [{"title": en(c.title_i18n), "code": c.code, "context": "Results",
+                "waiting_days": None, "link": f"/manage/challenges/{c.id}/results",
+                "action": "publish_results" if c.id in decided else "record_results"}
+               for c in challenges.values() if c.status_code == "RESULTS_PENDING_APPROVAL" and not c.results_published_at]
+    group("results", "warning", results, "/manage/challenges?status=IN_REVIEW")
+
+    # 5. Overdue reviews, one line per round (that is where you remind or swap judges)
+    late: dict[str, list[ReviewAssignment]] = {}
+    for a in [x for x in assignments if x.status in ("ASSIGNED", "IN_PROGRESS") and x.due_at and x.due_at < now]:
+        late.setdefault(a.review_round_id, []).append(a)
+    overdue = []
+    for rid, items in late.items():
+        rnd = rounds.get(rid)
+        if not rnd:
+            continue
+        judges = sorted({(user_brief(db, a.reviewer_user_id) or {}).get("full_name", "?") for a in items})
+        oldest = _days(min(a.due_at for a in items), now)
+        ch = challenges.get(rnd.challenge_id) if rnd.challenge_id else None
+        if not ch:      # open ideas: one line per idea, so the button opens the idea where its judges are changed
+            for eid in dict.fromkeys(a.entity_id for a in items):
+                ini = cache.one(db, Initiative, eid)
+                mine = [a for a in items if a.entity_id == eid]
+                if not ini or ini.deleted_at:
+                    continue
+                overdue.append({"title": ini.title, "code": ini.code, "context": en(rnd.name_i18n), "count": len(mine),
+                                "judges": sorted({(user_brief(db, a.reviewer_user_id) or {}).get("full_name", "?") for a in mine}),
+                                "waiting_days": _days(min(a.due_at for a in mine), now), "link": f"/ideas/{ini.code or ini.id}",
+                                "action": "chase_reviews"})
+            continue
+        overdue.append({"title": en(ch.title_i18n), "code": ch.code,
+                        "context": en(rnd.name_i18n), "count": len(items), "judges": judges, "waiting_days": oldest,
+                        "link": f"/manage/challenges/{ch.id}/rounds/{rid}",
+                        "action": "chase_reviews"})
+    group("overdue_reviews", "danger", overdue, "/manage/challenges")
+    return groups
 
 
 @router.get("/home")
@@ -126,10 +223,12 @@ def home(cu: CurrentUser = Depends(get_current_user), db: Session = Depends(get_
                           "action_label": "Review", "link": f"/teams/{team.id}", "due_at": None})
     ideas = _my_ideas(db, cu)
     for ini in ideas:
-        if ini.current_state_code == "CLARIFICATION_REQUESTED":
+        c = None
+        if ini.current_state_code == "UNDER_REVIEW":     # a judge's question waits for the owner's reply
             c = db.scalar(select(ClarificationRequest).where(ClarificationRequest.entity_type == "initiative",
                                                              ClarificationRequest.entity_id == ini.id,
-                                                             ClarificationRequest.status == "OPEN"))
+                                                             ClarificationRequest.status == "OPEN").limit(1))
+        if c:
             needs.append({"tone": "warning", "text": f"A reviewer asked a question — {ini.code}", "action_label": "Reply",
                           "link": f"/ideas/{ini.code}", "due_at": iso(c.due_at) if c else None})
         elif ini.current_state_code == "DRAFT":
@@ -155,12 +254,7 @@ def home(cu: CurrentUser = Depends(get_current_user), db: Session = Depends(get_
     if cu.privileged:
         program = _program_block(db)
         out["program"] = program
-        for key, text, link, label in (("ideas_to_triage", "idea(s) waiting for triage", "/manage/ideas", "Triage"),
-                                       ("shortlists_waiting", "shortlist(s) waiting for confirmation or publishing", "/manage/challenges", "Open"),
-                                       ("results_waiting", "result(s) waiting for approval", "/manage/challenges", "Open"),
-                                       ("reviews_overdue", "review(s) overdue", "/manage/challenges", "Send reminders")):
-            if program[key]:
-                needs.append({"tone": "warning", "text": f"{program[key]} {text}", "action_label": label, "link": link, "due_at": None})
+        out["action_groups"] = _action_groups(db, now)    # itemised, shown as its own list on the home page
     if cu.has_role("EXECUTIVE", "SUPER_ADMIN", "PROGRAM_OWNER"):
         out["executive"] = _executive_block(db)
     if cu.has_role("SUPER_ADMIN"):
@@ -174,19 +268,21 @@ def home(cu: CurrentUser = Depends(get_current_user), db: Session = Depends(get_
                           "link": "/impact", "due_at": None})
 
     open_challenges = []
-    for ch in db.scalars(select(Challenge).where(Challenge.deleted_at.is_(None), Challenge.status_code != "DRAFT")
-                         .order_by(Challenge.published_at.desc())).all():
+    for ch in sorted([c for c in _live(db, Challenge) if c.status_code != "DRAFT"],
+                     key=lambda c: c.published_at or c.created_at, reverse=True):
         csvc.sync_if_stale(db, ch)
         if ch.status_code not in csvc.CLOSED_STATUSES and ch.status_code != "SCHEDULED":
             open_challenges.append(csvc.challenge_card(db, ch, cu))
     db.commit()
-    points = db.scalar(select(func.coalesce(func.sum(PointsLedger.points), 0)).where(PointsLedger.user_id == cu.id))
+    points, badges = db.execute(select(
+        select(func.coalesce(func.sum(PointsLedger.points), 0)).where(PointsLedger.user_id == cu.id).scalar_subquery(),
+        select(func.count()).select_from(UserBadge).where(UserBadge.user_id == cu.id).scalar_subquery())).one()
     out.update({
         "needs_you": needs[:8], "my_entries": [c for c in cards if not c["is_finished"]][:4],
         "open_challenges": open_challenges[:3], "open_challenges_total": len(open_challenges),
         "my_ideas": [isvc.card(db, i) for i in ideas[:3]],
         "recognition": {"points": points or 0,
-                        "badges": db.scalar(select(func.count()).select_from(UserBadge).where(UserBadge.user_id == cu.id)) or 0},
+                        "badges": badges or 0},
         "is_new_user": not entries and not ideas and not cu.sees_all,
     })
     return out
@@ -289,9 +385,8 @@ def dashboard(kind: str, challenge_id: str = "", cu: CurrentUser = Depends(get_c
             "funnel": funnel, "participation_by_org_unit": _series(by_unit), "participation_by_domain": _series(by_domain),
             "challenge_progress": progress, "score_distribution": _series(buckets, sorted(buckets)),
             "ideas_by_state": _series(Counter(i.current_state_code for i in ideas),
-                                      [s for s in ["SUBMITTED", "TRIAGE", "UNDER_REVIEW", "CLARIFICATION_REQUESTED", "SHORTLISTED",
-                                                   "ON_HOLD", "NOT_SELECTED", "PROTOTYPE", "DEMO_VALIDATION", "PILOT", "PRODUCTION",
-                                                   "IMPACT_VERIFIED", "SCALED", "CLOSED"]]),
+                                      ["UNDER_REVIEW", "SHORTLISTED", "NOT_SELECTED", "PROTOTYPE", "PILOT", "PRODUCTION",
+                                       "IMPACT_VERIFIED", "CLOSED"]),
             "challenges": [{"id": c.id, "title": en(c.title_i18n)} for c in challenges.values() if c.status_code != "DRAFT"],
         }
 
@@ -300,7 +395,7 @@ def dashboard(kind: str, challenge_id: str = "", cu: CurrentUser = Depends(get_c
             raise not_found("Page")
         block = _executive_block(db)
         ideas = db.scalars(select(Initiative).where(Initiative.deleted_at.is_(None), Initiative.current_state_code != "DRAFT")).all()
-        order = {"SHORTLISTED": 1, "PROTOTYPE": 2, "DEMO_VALIDATION": 2, "PILOT": 3, "PRODUCTION": 4, "IMPACT_VERIFIED": 5, "SCALED": 6}
+        order = {"SHORTLISTED": 1, "PROTOTYPE": 2, "PILOT": 3, "PRODUCTION": 4, "IMPACT_VERIFIED": 5}
         reached = lambda n: sum(1 for i in ideas if order.get(i.current_state_code, 0) >= n)   # noqa: E731
         pct = lambda a, b: round(a * 100 / b) if b else 0   # noqa: E731
         conversions = [

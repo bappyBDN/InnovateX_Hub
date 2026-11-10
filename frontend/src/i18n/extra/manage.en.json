@@ -20,7 +20,14 @@
       "allStatuses": "All statuses",
       "allDomains": "All domains",
       "empty": "No challenges yet. Create the first one.",
-      "emptyFiltered": "No challenges match these filters."
+      "emptyFiltered": "No challenges match these filters.",
+      "group": {
+        "DRAFT": "Draft",
+        "OPEN": "Open",
+        "IN_REVIEW": "In review",
+        "RESULTS_PUBLISHED": "Results published",
+        "CLOSED": "Closed"
+      }
     },
     "phase": {
       "REGISTRATION": "Registration",
@@ -375,8 +382,8 @@
       "settingsTitle": "Challenge settings",
       "settingsDraft": "Finish the setup, then publish.",
       "settingsLocked": "Text, dates and prizes can still change. Structure is locked after publishing.",
-      "editChallenge": "Edit challenge",
-      "noActivity": "No activity recorded yet."
+      "noActivity": "No activity recorded yet.",
+      "stageTrack": "Where this challenge is"
     }
   }
 }

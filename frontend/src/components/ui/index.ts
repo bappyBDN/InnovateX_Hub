@@ -41,3 +41,4 @@ export {
 } from './Layout';
 export { DataTable, type Column, type DataTableProps } from './DataTable';
 export { RichText, RichTextEditor, plainText, isRichEmpty, type RichTextEditorProps } from './RichText';
+export * from './Combobox';

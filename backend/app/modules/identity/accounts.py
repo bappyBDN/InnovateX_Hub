@@ -56,8 +56,11 @@ def signup_options(invite: str = "", db: Session = Depends(get_db)):
     out = {"signup_enabled": bool(setting(db, "signup_enabled", settings.signup_enabled)),
            "allowed_domains": setting(db, "signup_allowed_domains", "") or "",
            "org_units": [{"id": u.id, "name": en(u.name_i18n), "unit_type": u.unit_type, "depth": 0} for u in units],
+           # Departments and functions of each SBU, for the two searchable lists of the sign-up form.
            "departments": [{"id": d.id, "name": en(d.name_i18n), "sbu_id": s.id, "depth": d.path.count(".") - s.path.count(".") - 1}
-                           for d, s in department_units(db)],
+                           for d, s in department_units(db) if d.unit_type != "FUNCTION"],
+           "functions": [{"id": d.id, "name": en(d.name_i18n), "sbu_id": s.id, "parent_id": d.parent_id}
+                         for d, s in department_units(db) if d.unit_type == "FUNCTION"],
            "invitation": None}
     if invite:
         inv = _invitation(db, invite)
@@ -70,6 +73,16 @@ def signup_options(invite: str = "", db: Session = Depends(get_db)):
     return out
 
 
+def _home_unit(sbu: OrgUnit | None, dept: OrgUnit | None, fn: OrgUnit | None) -> str | None:
+    """The most precise unit chosen: the function when it sits in the chosen department, else the department, else
+    the function, else the SBU."""
+    if not sbu:
+        return None
+    if fn and dept and fn.path.startswith(dept.path + "."):
+        return fn.id
+    return (dept or fn or sbu).id
+
+
 class SignupIn(BaseModel):
     full_name: str
     email: str
@@ -77,6 +90,11 @@ class SignupIn(BaseModel):
     job_title: str | None = None
     org_unit_id: str | None = None       # the SBU
     department_id: str | None = None     # a unit under that SBU
+    department_name: str | None = None   # typed when the department is not in the list
+    function_id: str | None = None       # a function unit under that SBU
+    function_name: str | None = None     # typed when the function is not in the list
+    manager_id: str | None = None        # Reports to: someone who already has an account
+    manager_email: str | None = None     # Reports to: someone without an account yet
     employee_no: str | None = None
     phone: str | None = None
     invite_token: str | None = None
@@ -112,17 +130,37 @@ def signup(body: SignupIn, request: Request, db: Session = Depends(get_db)):
     dept = db.get(OrgUnit, body.department_id) if body.department_id else None
     if body.department_id and not (dept and dept.is_active and unit and (sbu_of(db, dept) or dept).id == unit.id and dept.id != unit.id):
         errors["department_id"] = "Choose a department of your SBU."
+    fn = db.get(OrgUnit, body.function_id) if body.function_id else None
+    if body.function_id and not (fn and fn.is_active and fn.unit_type == "FUNCTION" and unit and (sbu_of(db, fn) or fn).id == unit.id):
+        errors["function_id"] = "Choose a function of your SBU."
+    manager = db.get(User, body.manager_id) if body.manager_id else None
+    if body.manager_id and not (manager and manager.is_active):
+        errors["manager_id"] = "Choose your manager from the list."
+    manager_email = (body.manager_email or "").strip().lower() or None
+    if not manager and manager_email and not EMAIL_RE.match(manager_email):
+        errors["manager_email"] = "Enter your manager's email address."
+    if manager_email and manager_email == email:
+        errors["manager_email"] = "Enter your manager's email, not your own."
     if errors:
         raise DomainError("VALIDATION_ERROR", "Some fields need attention.", 422, {"fields": errors})
+    if manager is None and manager_email:      # the manager may already have an account under that email
+        manager = db.scalar(select(User).where(func.lower(User.email) == manager_email, User.is_active.is_(True)))
     if db.scalar(select(User.id).where(func.lower(User.email) == email)):
         raise DomainError("EMAIL_TAKEN", "An account with this email already exists. Sign in instead.", 409)
     org = db.scalar(select(Organization.id))
     user = User(organization_id=org, full_name=body.full_name.strip(), email=email, password_hash=hash_password(body.password),
                 job_title=(body.job_title or "").strip() or None,
-                primary_org_unit_id=(dept or unit).id if unit else None, employee_no=employee_no, phone=body.phone, grade=None,
+                primary_org_unit_id=_home_unit(unit, dept, fn), employee_no=employee_no, phone=body.phone, grade=None,
+                manager_id=manager.id if manager else None,
+                pending_manager_email=None if manager else manager_email,
+                department_name=None if dept else ((body.department_name or "").strip()[:150] or None),
+                function_name=None if fn else ((body.function_name or "").strip()[:150] or None),
                 joined_on=utcnow().date(), has_corporate_login=True, is_active=True, last_login_at=utcnow())
     db.add(user)
     db.flush()
+    # People who named this person as their manager before they had an account now report to them.
+    for waiting in db.scalars(select(User).where(func.lower(User.pending_manager_email) == email)).all():
+        waiting.manager_id, waiting.pending_manager_email = user.id, None
     granted = []
     if inv:
         for code in inv.role_codes or []:

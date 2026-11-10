@@ -23,7 +23,6 @@ import {
 } from '@/components/ui';
 import NotFoundPage from '@/features/misc/NotFoundPage';
 import { formatDateTime } from '@/utils/dates';
-import { statusLabel } from '@/utils/format';
 import { tr, type I18nText } from '@/utils/i18n';
 
 interface ManageRow {
@@ -51,21 +50,8 @@ interface Domain {
   name_i18n: I18nText;
 }
 
-const STATUSES = [
-  'DRAFT',
-  'SCHEDULED',
-  'OPEN_FOR_REGISTRATION',
-  'METHODOLOGY_OPEN',
-  'METHODOLOGY_REVIEW',
-  'SHORTLISTING',
-  'BUILD',
-  'PROTOTYPE_REVIEW',
-  'FINAL_SUBMISSION',
-  'DEMO_AND_JUDGING',
-  'RESULTS_PENDING_APPROVAL',
-  'RESULTS_PUBLISHED',
-  'CLOSED',
-];
+/** Five families; the server matches every detailed status inside the chosen one. */
+const STATUSES = ['DRAFT', 'OPEN', 'IN_REVIEW', 'RESULTS_PUBLISHED', 'CLOSED'];
 
 export default function ManageChallengesPage() {
   const { t } = useTranslation();
@@ -181,7 +167,7 @@ export default function ManageChallengesPage() {
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               placeholder={t('manage.list.allStatuses')}
-              options={STATUSES.map((s) => ({ value: s, label: statusLabel(s) }))}
+              options={STATUSES.map((s) => ({ value: s, label: t(`manage.list.group.${s}`) }))}
             />
           </Field>
           <Field label={t('manage.list.domain')}>

@@ -10,11 +10,12 @@ from app.core.events import audit
 from app.core.permissions import CurrentUser, get_current_user, get_entry_or_404, require_roles
 from app.modules.evaluation import gates
 from app.modules.evaluation.models import StageGate, StageGateVote
+from app.shared import cache
 from app.shared.access import get_initiative_or_404
 from app.shared.util import user_brief
 
 router = APIRouter(tags=["prototype and pilot review"])
-ADMIN = ("SUPER_ADMIN",)
+ADMIN = ("SUPER_ADMIN", "DMD", "PROGRAM_OWNER")
 
 
 def _subject(db: Session, cu: CurrentUser, entity_type: str, entity_id: str) -> gates.Subject:
@@ -151,6 +152,10 @@ def final_call(gate_id: str, body: DecideIn, request: Request, cu: CurrentUser =
 def all_gates(cu: CurrentUser = Depends(require_roles("SUPER_ADMIN", "PROGRAM_OWNER", "EXECUTIVE")), db: Session = Depends(get_db)):
     """Every prototype and pilot review, newest first (latest round only)."""
     seen, rows = set(), []
+    from app.modules.challenges.models import Challenge, ChallengeEntry, Team
+    from app.modules.initiatives.models import Initiative
+    cache.preload(db, Initiative, ChallengeEntry, Challenge, Team)    # Subject() below then reads from memory
+    votes = cache.by(db, StageGateVote, "gate_id")
     for gate in db.scalars(select(StageGate).where(StageGate.status != "DRAFT")
                            .order_by(StageGate.submitted_at.desc(), StageGate.round_no.desc())).all():
         key = (gate.entity_type, gate.entity_id, gate.stage)
@@ -163,7 +168,7 @@ def all_gates(cu: CurrentUser = Depends(require_roles("SUPER_ADMIN", "PROGRAM_OW
             continue
         rows.append({"id": gate.id, "stage": gate.stage, "round_no": gate.round_no, "status": gate.status,
                      "submitted_at": gate.submitted_at.isoformat() + "Z" if gate.submitted_at else None,
-                     "tally": gates.tally(gates.votes_of(db, gate)),
+                     "tally": gates.tally(votes.get(gate.id, [])),
                      "entity": {"type": subject.entity_type, "id": subject.id, "code": subject.code, "title": subject.title,
                                 "context": subject.context, "link": subject.link}})
     return {"items": rows, "total": len(rows), "can_manage": cu.has_role(*ADMIN)}

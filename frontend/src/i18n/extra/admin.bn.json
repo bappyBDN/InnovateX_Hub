@@ -94,6 +94,20 @@
         "DEPARTMENT": "বিভাগ",
         "TEAM": "টিম",
         "PROJECT": "প্রকল্প"
+      },
+      "sync": {
+        "button": "ProjectFlow থেকে মিলিয়ে নিন",
+        "done": "ProjectFlow থেকে প্রতিষ্ঠানের কাঠামো মিলিয়ে নেওয়া হয়েছে",
+        "confirmTitle": "ProjectFlow থেকে এসবিইউ, বিভাগ ও ফাংশন মিলিয়ে নেবেন?",
+        "confirmBody": "ProjectFlow-এর প্রতিটি কোম্পানি একটি এসবিইউ হবে, সঙ্গে থাকবে তার লোকজন ও প্রজেক্ট যে বিভাগ ও ফাংশন ব্যবহার করে। আগে থেকে থাকা এসবিইউ যুক্ত হবে এবং নাম একই থাকবে। ProjectFlow-এ নেই এমন এসবিইউ কেউ ব্যবহার না করলেই শুধু বন্ধ হবে। কিছুই মোছা হয় না, আর যেকোনো সময় আবার চালানো যায়।",
+        "resultTitle": "ProjectFlow মিলিয়ে নেওয়ার ফলাফল",
+        "created": "নতুন এসবিইউ",
+        "linked": "যুক্ত হওয়া পুরোনো এসবিইউ",
+        "fixed": "এখন এসবিইউ হিসেবে গণ্য",
+        "off": "বন্ধ করা হয়েছে (ProjectFlow-এ নেই)",
+        "kept": "ProjectFlow-এ নেই, তবে ব্যবহার হচ্ছে",
+        "departments": "যোগ হওয়া বিভাগ",
+        "functions": "যোগ হওয়া ফাংশন"
       }
     },
     "master": {
@@ -369,7 +383,14 @@
         "triage_sla_days": "নতুন আইডিয়ায় প্রথম সাড়া (কার্যদিবস)",
         "review_sla_days": "রিভিউয়ের সময় (কার্যদিবস)",
         "retention_years_closed": "বন্ধ আইডিয়া রাখার সময় (বছর)",
-        "team_submit_leader_only": "শুধু টিম লিডার জমা দিতে পারেন"
+        "team_submit_leader_only": "শুধু টিম লিডার জমা দিতে পারেন",
+        "aes_team_lead_name": "AES টিম লিড — নাম",
+        "aes_team_lead_email": "AES টিম লিড — ইমেইল",
+        "projects_auto_sync_enabled": "প্রতিদিন প্রজেক্ট ইমপোর্ট ও সিঙ্ক (প্রজেক্ট রিওয়ার্ড)",
+        "projects_auto_sync_time": "দৈনিক প্রজেক্ট সিঙ্কের সময় (HH:MM)",
+        "projects_last_auto_sync": "শেষ দৈনিক প্রজেক্ট সিঙ্ক",
+        "aes_team_lead_designation": "AES টিম লিড — পদবি",
+        "aes_team_lead_employee_id": "AES টিম লিড — কর্মী নম্বর"
       },
       "flag": {
         "PEOPLES_CHOICE": "পিপলস চয়েস ভোটিং",

@@ -48,7 +48,7 @@
     "send": "Submit for review",
     "sendAgain": "Submit again",
     "sendHelp": "After you submit you can't change it unless the judges send it back. The innovation office then chooses the judges.",
-    "sent": "Submitted. The innovation office will choose the judges.",
+    "sent": "Submitted. It goes to the judges now.",
     "draftSaved": "Draft saved",
     "sentOn": "Sent {{date}}",
     "notSentYet": "Nothing has been sent yet.",
@@ -69,7 +69,7 @@
     "rejectedTitle": "This was rejected. See the feedback above.",
     "earlierRounds_one": "{{count}} earlier round",
     "earlierRounds_other": "{{count}} earlier rounds",
-    "adminTitle": "Judges for this review (Super Admin / DMD)",
+    "adminTitle": "Judges for this review",
     "waiting": "Waiting",
     "finalCall": "Final decision by the admin",
     "finalCallHelp": "Most judges decide. Use this only to decide yourself; it overrides the judges and needs a reason.",
@@ -95,7 +95,7 @@
     "backToEntry": "Back to entry",
     "entryNotOpen": "The demo step is not open yet. It opens when your entry is shortlisted and a demo is asked for.",
     "adminTab": "Demo & pilot reviews",
-    "adminHelp": "Every demo and pilot submitted for review. Open one to choose its judges, send it for review or make the final decision.",
+    "adminHelp": "Every demo and pilot sent for review. Most go to their judges automatically; the ones marked \"No judges\" need you to choose them. Open one to change the judges or make the final decision.",
     "adminEmpty": "Nothing has been submitted yet.",
     "fieldLabel": {
       "PROTOTYPE": {
@@ -111,7 +111,7 @@
       }
     },
     "submittedTitle": "Submitted",
-    "submittedBody": "The innovation office will choose the judges and send it for review. You'll be notified when it is with the judges and when they decide.",
+    "submittedBody": "It goes straight to the judges who reviewed your work before. If none are set up yet, the innovation office chooses them. You'll be notified when they decide.",
     "eligibleTitle": "Eligible for the pilot",
     "eligibleBody": "Your demo was approved. The pilot form is open below.",
     "pilotLocked": "The pilot form opens once your demo is approved.",

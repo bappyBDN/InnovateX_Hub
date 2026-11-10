@@ -25,7 +25,7 @@
     "ofOpenReviews": "of {{count}} entries to score",
     "shortlistsWaiting": "Shortlists waiting for confirmation",
     "resultsWaiting": "Results waiting for approval",
-    "ideasToTriage": "New ideas waiting for a first check",
+    "ideasToTriage": "New ideas waiting for judges",
     "challengesByPhase": "Challenges by phase",
     "executiveTitle": "Key numbers",
     "openDashboards": "Open dashboards",
@@ -49,7 +49,61 @@
     "pointsValue": "Points: {{count}}",
     "badgesValue": "Badges: {{count}}",
     "recognitionHint": "Points are given for quality steps such as shortlisting and verified impact, not for the number of ideas.",
-    "openProfile": "Open my profile"
+    "openProfile": "Open my profile",
+    "actions": {
+      "summary": "Open work by kind",
+      "forYou": "Your own tasks",
+      "seeAll": "See all",
+      "totalOpen_one": "{{count}} thing to do",
+      "totalOpen_other": "{{count}} things to do",
+      "more_one": "+ {{count}} more",
+      "more_other": "+ {{count}} more",
+      "waiting_one": "Waiting {{count}} day",
+      "waiting_other": "Waiting {{count}} days",
+      "today": "Since today",
+      "late_one": "{{count}} day late",
+      "late_other": "{{count}} days late",
+      "lateToday": "Due today",
+      "reviews_one": "{{count}} review",
+      "reviews_other": "{{count}} reviews",
+      "judges": "Judges: {{names}}",
+      "overdueHint_one": "{{count}} overdue",
+      "overdueHint_other": "{{count}} overdue",
+      "do": {
+        "choose_judges": "Choose judges",
+        "confirm_shortlist": "Confirm shortlist",
+        "publish_shortlist": "Publish shortlist",
+        "publish_results": "Publish results",
+        "record_results": "Record jury decision",
+        "chase_reviews": "Remind or swap judges"
+      },
+      "ideas_need_judges": {
+        "short": "ideas need judges",
+        "title": "Ideas that need judges",
+        "help": "Submitted ideas nobody is judging yet. Choose judges for each one, or set default idea judges so new ideas are assigned automatically."
+      },
+      "demos_need_judges": {
+        "short": "demos need judges",
+        "title": "Demos and pilots that need judges",
+        "help": "Sent for review, but no judge is set up for them. Choose the judges to start the review."
+      },
+      "shortlists": {
+        "short": "shortlists to finish",
+        "title": "Shortlists to confirm or publish",
+        "help": "Check the proposed shortlist and confirm it, then publish it so entrants hear the decision."
+      },
+      "results": {
+        "short": "results to publish",
+        "title": "Challenge results",
+        "help": "Record the jury decision, then publish the results. Winners and every finalist are told at once."
+      },
+      "overdue_reviews": {
+        "short": "with late reviews",
+        "title": "Late reviews",
+        "help": "Judges who passed their due date. A challenge round opens where you remind them or give the work to another judge; an idea opens where you change its judges."
+      },
+      "openReviews": "Reviews in progress"
+    }
   },
   "challenges": {
     "listTitle": "Challenges",

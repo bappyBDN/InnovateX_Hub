@@ -117,6 +117,10 @@
     "entryEmpty": "No judges chosen for this entry yet.",
     "addEntryTitle": "Add judges for {{code}}",
     "addEntryHelp": "Pick people from the list. They score this entry only.",
-    "entryStaffTitle": "Judges and scores"
+    "entryStaffTitle": "Judges and scores",
+    "defaultTitle": "Default idea judges",
+    "defaultHelp": "Every new idea goes to these people automatically when it is submitted, and a shortlisted idea's demo goes back to the same judges. You only choose judges for one idea when you want to change them.",
+    "defaultEmpty": "No default idea judges yet. Add at least one person, otherwise new ideas wait until someone chooses judges for them.",
+    "oneIdeaTitle": "Change the judges of one idea"
   }
 }

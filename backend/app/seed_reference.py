@@ -153,49 +153,35 @@ FORMS = {
 }
 
 INITIATIVE_STATES = [  # code, name, group, initial, terminal, SLA hours, label for the owner
-    ("DRAFT", "Draft", "DRAFT", True, False, None, "Draft"), ("SUBMITTED", "Submitted", "WAITING", False, False, 24, "Submitted"),
-    ("TRIAGE", "Triage", "ACTIVE", False, False, 120, "Being checked"), ("UNDER_REVIEW", "Under review", "ACTIVE", False, False, 240, "In review"),
-    ("CLARIFICATION_REQUESTED", "Clarification requested", "WAITING", False, False, 120, "Needs your reply"),
-    ("SHORTLISTED", "Shortlisted", "SUCCESS", False, False, None, "Shortlisted"), ("ON_HOLD", "On hold", "WAITING", False, False, None, "On hold"),
+    ("DRAFT", "Draft", "DRAFT", True, False, None, "Draft"),
+    ("UNDER_REVIEW", "In review", "ACTIVE", False, False, 240, "With the judges"),
+    ("SHORTLISTED", "Shortlisted", "SUCCESS", False, False, None, "Shortlisted: build your demo"),
     ("NOT_SELECTED", "Not selected (Idea Bank)", "CLOSED", False, False, None, "In the Idea Bank"),
-    ("DUPLICATE", "Duplicate (linked)", "CLOSED", False, True, None, "Linked to an earlier idea"),
-    ("PROTOTYPE", "Prototype", "ACTIVE", False, False, None, "Building prototype"),
-    ("DEMO_VALIDATION", "Demo / validation", "ACTIVE", False, False, None, "Demo and validation"),
-    ("PILOT", "Pilot", "ACTIVE", False, False, None, "In pilot"), ("PRODUCTION", "Production / implemented", "SUCCESS", False, False, None, "Live"),
+    ("PROTOTYPE", "Demo in review", "ACTIVE", False, False, None, "Demo with the judges"),
+    ("PILOT", "Pilot", "ACTIVE", False, False, None, "In pilot"),
+    ("PRODUCTION", "Live", "SUCCESS", False, False, None, "Live"),
     ("IMPACT_VERIFIED", "Impact verified", "SUCCESS", False, False, None, "Impact verified"),
-    ("SCALED", "Scaled / reusable", "SUCCESS", False, False, None, "Scaled"), ("CLOSED", "Closed", "CLOSED", False, True, None, "Closed"),
+    ("CLOSED", "Closed", "CLOSED", False, True, None, "Closed"),
 ]
+# Only the decisions a person makes are buttons. Submitting, sending a demo to the judges and the judges' verdict on
+# the demo and the pilot move the idea on by themselves (see evaluation/gates.py).
 INITIATIVE_TRANSITIONS = [  # from, to, action, button text, permission (None = owner), comment required, guard, event
-    ("DRAFT", "SUBMITTED", "SUBMIT", "Submit idea", None, False, {}, "INITIATIVE_SUBMITTED"),
-    ("SUBMITTED", "TRIAGE", "START_TRIAGE", "Start triage", "initiative.triage", False, {}, None),
-    ("TRIAGE", "UNDER_REVIEW", "SEND_TO_REVIEW", "Send to review", "initiative.triage", False, {}, None),
-    ("TRIAGE", "DUPLICATE", "MARK_DUPLICATE", "Mark as duplicate", "initiative.triage", True, {}, "DUPLICATE_LINKED"),
-    ("TRIAGE", "NOT_SELECTED", "REJECT", "Not selected", "initiative.triage", True, {}, None),
+    ("DRAFT", "UNDER_REVIEW", "SUBMIT", "Submit idea", None, False, {}, "INITIATIVE_SUBMITTED"),
     ("UNDER_REVIEW", "SHORTLISTED", "SHORTLIST", "Shortlist", "initiative.decide", True, {}, "ENTRY_SHORTLISTED"),
-    ("UNDER_REVIEW", "ON_HOLD", "HOLD", "Put on hold", "initiative.decide", True, {}, None),
     ("UNDER_REVIEW", "NOT_SELECTED", "REJECT", "Not selected", "initiative.decide", True, {}, None),
-    ("ON_HOLD", "UNDER_REVIEW", "RESUME", "Resume review", "initiative.decide", False, {}, None),
-    ("NOT_SELECTED", "TRIAGE", "REOPEN", "Reopen from Idea Bank", "initiative.triage", True, {}, None),
-    ("SHORTLISTED", "PROTOTYPE", "START_PROTOTYPE", "Authorize prototype", "initiative.decide", False, {}, None),
-    ("PROTOTYPE", "DEMO_VALIDATION", "REQUEST_DEMO", "Request demo", None, False, {}, None),
-    ("DEMO_VALIDATION", "PILOT", "APPROVE_PILOT", "Approve pilot", "initiative.approve_pilot", False,
-     {"requires_sponsor": True, "requires_kpi_baseline": True}, "PILOT_APPROVED"),
-    ("DEMO_VALIDATION", "PROTOTYPE", "REQUEST_REWORK", "Ask for rework", "initiative.approve_pilot", True, {}, None),
-    ("PILOT", "PRODUCTION", "GO_LIVE", "Move to production", "initiative.approve_pilot", False, {"requires_measurement": True}, None),
+    ("UNDER_REVIEW", "NOT_SELECTED", "MARK_DUPLICATE", "Duplicate of an earlier idea", "initiative.decide", True, {}, "DUPLICATE_LINKED"),
+    ("NOT_SELECTED", "UNDER_REVIEW", "REOPEN", "Reopen from Idea Bank", "initiative.decide", True, {}, None),
+    ("PILOT", "PRODUCTION", "GO_LIVE", "Mark as live", "initiative.approve_pilot", False, {"requires_measurement": True}, None),
     ("PILOT", "CLOSED", "STOP", "Stop pilot", "initiative.approve_pilot", True, {}, None),
     ("PRODUCTION", "IMPACT_VERIFIED", "VERIFY_IMPACT", "Mark impact verified", "impact.verify", False,
      {"requires_verified_measurement": True}, "IMPACT_VERIFIED"),
-    ("IMPACT_VERIFIED", "SCALED", "MARK_SCALED", "Mark as scaled", "initiative.decide", False, {}, None),
+    ("PRODUCTION", "CLOSED", "CLOSE", "Close", "initiative.decide", True, {}, None),
     ("IMPACT_VERIFIED", "CLOSED", "CLOSE", "Close", "initiative.decide", False, {}, None),
-    ("SCALED", "CLOSED", "CLOSE", "Close", "initiative.decide", False, {}, None),
 ]
-ENTRY_STATES = ["REGISTERED", "METHODOLOGY_SUBMITTED", "NO_SUBMISSION", "UNDER_REVIEW", "CLARIFICATION_REQUESTED", "SHORTLISTED",
-                "WAITLISTED", "NOT_SHORTLISTED", "BUILDING", "PROTOTYPE_SUBMITTED", "PROTOTYPE_REVIEWED", "FINALIST", "NOT_SELECTED",
-                "FINAL_SUBMITTED", "JUDGED", "WINNER", "RUNNER_UP", "PARTICIPANT", "CONVERTED_TO_INITIATIVE", "WITHDRAWN"]
-CHALLENGE_STATES = ["DRAFT", "SCHEDULED", "OPEN_FOR_REGISTRATION", "METHODOLOGY_OPEN", "METHODOLOGY_REVIEW", "SHORTLISTING", "BUILD",
-                    "PROTOTYPE_REVIEW", "FINAL_SUBMISSION", "DEMO_AND_JUDGING", "RESULTS_PENDING_APPROVAL", "RESULTS_PUBLISHED",
-                    "CLOSED", "CANCELLED", "ON_HOLD"]
-
+# Older idea states and the state each one became when the workflow was simplified.
+RETIRED_IDEA_STATES = {"SUBMITTED": "UNDER_REVIEW", "TRIAGE": "UNDER_REVIEW", "CLARIFICATION_REQUESTED": "UNDER_REVIEW",
+                       "ON_HOLD": "NOT_SELECTED", "DUPLICATE": "NOT_SELECTED", "DEMO_VALIDATION": "PROTOTYPE",
+                       "SCALED": "IMPACT_VERIFIED"}
 FOOTER = "\n\nOpen: {{secure_link}}\n\nThis is an automatic message from {{app_name}}. Details are shown only after you sign in."
 TEMPLATES = [
     ("EM-01", "INITIATIVE_SUBMITTED", "[InnovateX] {{innovation_id}} submitted successfully",
@@ -259,6 +245,37 @@ SETTINGS = [
     ("signup_allowed_domains", "", "Comma-separated email domains allowed to sign up (empty = any). Invitations ignore this."),
     ("team_submit_leader_only", False, "If on, only the team leader can press Submit on team submissions."),
 ]
+# Added after the first release: created on start when missing, so existing databases get them too.
+LATER_SETTINGS = [
+    ("aes_team_lead_name", "Asim Ibne Ilyus", "AES team lead: Team Lead of every AES project in Project Rewards and "
+     "one of the people a reward challenge can go to."),
+    ("aes_team_lead_email", "asim.ilyus@anwargroup.com", "Email of the AES team lead; reward challenge emails go here."),
+    ("aes_team_lead_designation", "Lead Product", "Designation of the AES team lead."),
+    ("aes_team_lead_employee_id", "013812", "Employee number of the AES team lead."),
+    ("projects_auto_sync_enabled", True, "Import and sync the Project Rewards projects from ProjectFlow and Process "
+     "Brain automatically once a day. Projects removed there are removed here too."),
+    ("projects_auto_sync_time", "06:00", "Time of the daily automatic project import and sync (HH:MM, Asia/Dhaka)."),
+    ("projects_last_auto_sync", "", "Filled in by the system: when the daily project import last ran and its result."),
+]
+
+
+def ensure_settings(db: Session) -> None:
+    have = set(db.scalars(select(SystemSetting.key)).all())
+    missing = [(k, v, d) for k, v, d in LATER_SETTINGS if k not in have]
+    for key, value, desc in missing:
+        db.add(SystemSetting(key=key, value=value, description=desc))
+    # The first release shipped a placeholder AES lead ("Asim", no email): fill in the real details once.
+    upgraded = False
+    for key, placeholder in PLACEHOLDER_SETTINGS.items():
+        row = db.scalar(select(SystemSetting).where(SystemSetting.key == key))
+        if row and row.value == placeholder:
+            row.value = next(v for k, v, _ in LATER_SETTINGS if k == key)
+            upgraded = True
+    if missing or upgraded:
+        db.commit()
+
+
+PLACEHOLDER_SETTINGS = {"aes_team_lead_name": "Asim", "aes_team_lead_email": ""}
 FLAGS = [("PEOPLES_CHOICE", False, "People's Choice voting (shows finalists' public summaries)."),
          ("LEADERBOARDS", False, "Leaderboards per challenge. Off by default for privacy."),
          ("AI_IDEA_COACH", False, "AI idea coach (Release 3)."), ("AI_REVIEW_SUMMARY", False, "AI review summary (Release 3)."),
@@ -344,23 +361,13 @@ def seed_reference(db: Session) -> dict:
         db.add(WorkflowTransition(workflow_definition_id=wf.id, from_state=src, to_state=dst, action_code=action,
                                   label_i18n={"en": label}, allowed_permission=perm, requires_comment=comment, guard_rules=guard,
                                   emits_event=event, sort_order=i))
-    for code, entity, states, desc in (("CHALLENGE_ENTRY_STD", "challenge_entry", ENTRY_STATES, "One participant or team in a challenge."),
-                                       ("CHALLENGE_LIFECYCLE", "challenge", CHALLENGE_STATES, "The challenge itself; driven by its phases.")):
-        d = WorkflowDefinition(code=code, entity_type=entity, description=desc)
-        db.add(d)
-        db.flush()
-        for i, s in enumerate(states):
-            label = s.replace("_", " ").capitalize()
-            db.add(WorkflowState(workflow_definition_id=d.id, code=s, name_i18n={"en": label}, state_group="ACTIVE", is_initial=i == 0,
-                                 is_terminal=False, visible_to_owner_as_i18n={"en": label}, sort_order=i))
-
     for code, event, subject, body in TEMPLATES:
         db.add(NotificationTemplate(code=code, event_type=event, channel="EMAIL", locale="en", subject_template=subject, body_template=body))
     db.add(NotificationRule(event_type="INITIATIVE_NEEDS_REVIEW", channel="EMAIL", recipient_type="SETTING",
                             recipient_value="designated_reviewer_mailbox", template_code="EM-02"))
     db.add(NotificationRule(event_type="REVIEW_DUE_SOON", channel="EMAIL", recipient_type="SETTING",
                             recipient_value="escalation_mailbox", template_code="EM-06", is_active=False))
-    for key, value, desc in SETTINGS:
+    for key, value, desc in SETTINGS + LATER_SETTINGS:
         db.add(SystemSetting(key=key, value=value, description=desc))
     for code, on, desc in FLAGS:
         db.add(FeatureFlag(code=code, is_enabled=on, description=desc, rules={}))
@@ -372,3 +379,72 @@ def seed_reference(db: Session) -> dict:
         db.add(Badge(code=code, name_i18n={"en": name}, description_i18n={"en": desc}, icon=icon, rule={}))
     db.flush()
     return ref
+
+
+def ensure_simple_workflow(db: Session) -> None:
+    """Moves an existing database to the simplified idea workflow. Safe to run on every start.
+
+    1. The idea workflow rows are replaced when they still hold the older states.
+    2. Ideas in a retired state move to the state that replaced it (with a history line).
+    3. The two workflow definitions for challenges and entries, which no code read, are removed.
+    4. The open-idea review round and its default judge panel exist, so new ideas can go straight to judges."""
+    from app.core.events import record_history
+    from app.modules.evaluation.models import Panel, ReviewRound
+    from app.modules.initiatives.models import Initiative
+
+    changed = False
+    wf = db.scalar(select(WorkflowDefinition).where(WorkflowDefinition.code == "INITIATIVE_STD"))
+    if wf:
+        codes = set(db.scalars(select(WorkflowState.code).where(WorkflowState.workflow_definition_id == wf.id)).all())
+        if codes != {s[0] for s in INITIATIVE_STATES}:
+            for model in (WorkflowState, WorkflowTransition):
+                for row_ in db.scalars(select(model).where(model.workflow_definition_id == wf.id)).all():
+                    db.delete(row_)
+            db.flush()
+            for i, (code, name, group, initial, terminal, sla, owner_label) in enumerate(INITIATIVE_STATES):
+                db.add(WorkflowState(workflow_definition_id=wf.id, code=code, name_i18n={"en": name}, state_group=group,
+                                     is_initial=initial, is_terminal=terminal, sla_hours=sla,
+                                     visible_to_owner_as_i18n={"en": owner_label}, sort_order=i))
+            for i, (src, dst, action, label, perm, comment, guard, event) in enumerate(INITIATIVE_TRANSITIONS):
+                db.add(WorkflowTransition(workflow_definition_id=wf.id, from_state=src, to_state=dst, action_code=action,
+                                          label_i18n={"en": label}, allowed_permission=perm, requires_comment=comment,
+                                          guard_rules=guard, emits_event=event, sort_order=i))
+            wf.description = "Simplified open-idea lifecycle: review, shortlist, demo, pilot, live, impact."
+            changed = True
+
+    for ini in db.scalars(select(Initiative).where(Initiative.current_state_code.in_(list(RETIRED_IDEA_STATES)))).all():
+        old, new = ini.current_state_code, RETIRED_IDEA_STATES[ini.current_state_code]
+        record_history(db, "initiative", ini.id, old, new, "WORKFLOW_SIMPLIFIED", None,
+                       f"The {old.replace('_', ' ').lower()} step was merged into {new.replace('_', ' ').lower()}.")
+        ini.current_state_code = new
+        ini.is_in_idea_bank = new == "NOT_SELECTED"
+        changed = True
+
+    for code in ("CHALLENGE_ENTRY_STD", "CHALLENGE_LIFECYCLE"):
+        d = db.scalar(select(WorkflowDefinition).where(WorkflowDefinition.code == code))
+        if d:
+            for model in (WorkflowState, WorkflowTransition):
+                for row_ in db.scalars(select(model).where(model.workflow_definition_id == d.id)).all():
+                    db.delete(row_)
+            db.delete(d)
+            changed = True
+
+    rnd = db.scalar(select(ReviewRound).where(ReviewRound.round_type == "IDEA_REVIEW", ReviewRound.challenge_id.is_(None)))
+    if not rnd:
+        card = db.scalar(select(Scorecard).where(Scorecard.code == "IDEA_REVIEW_A")) or db.scalar(select(Scorecard).limit(1))
+        if card:
+            panel = Panel(name="Idea judges", panel_type="REVIEW")
+            db.add(panel)
+            db.flush()
+            db.add(ReviewRound(round_type="IDEA_REVIEW", name_i18n={"en": "Idea review"}, scorecard_id=card.id,
+                               panel_id=panel.id, reviewers_per_entry=2, aggregation_method="MEAN",
+                               disagreement_threshold=2, status="IN_PROGRESS", show_scores_to_entrants="TOTAL_ONLY"))
+            changed = True
+    elif not rnd.panel_id:
+        panel = Panel(name="Idea judges", panel_type="REVIEW")
+        db.add(panel)
+        db.flush()
+        rnd.panel_id = panel.id
+        changed = True
+    if changed:
+        db.commit()

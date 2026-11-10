@@ -69,12 +69,15 @@ def _role_matrix(db: Session) -> dict:
     return cache.shared("role_matrix", load, ttl=60)
 
 
-def load_roles(db: Session, user_id: str) -> tuple[set[str], set[str]]:
+def load_roles(db: Session, user_id: str, assignments: list[tuple] | None = None) -> tuple[set[str], set[str]]:
+    """`assignments` = (role_id, valid_to) pairs when the caller already read them with the user."""
     now = utcnow()
     matrix = _role_matrix(db)
-    rows = db.scalars(select(UserRoleAssignment).where(UserRoleAssignment.user_id == user_id)).all()
-    roles = {matrix["roles"][a.role_id] for a in rows
-             if a.role_id in matrix["roles"] and (a.valid_to is None or a.valid_to > now)} | {"EMPLOYEE"}
+    if assignments is None:
+        assignments = [(a.role_id, a.valid_to) for a in
+                       db.scalars(select(UserRoleAssignment).where(UserRoleAssignment.user_id == user_id)).all()]
+    roles = {matrix["roles"][role_id] for role_id, valid_to in assignments
+             if role_id in matrix["roles"] and (valid_to is None or valid_to > now)} | {"EMPLOYEE"}
     if "DMD" in roles:
         roles.add("SUPER_ADMIN")       # the DMD gets every feature the Super Admin has
     if "SUPER_ADMIN" in roles:
@@ -89,10 +92,14 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> Current
     auth = request.headers.get("Authorization", "")
     token = auth[7:] if auth.lower().startswith("bearer ") else None
     user_id = decode_access_token(token) if token else None
-    user = db.get(User, user_id) if user_id else None
+    # The user and their role assignments in one round trip (this runs on every request).
+    rows = db.execute(select(User, UserRoleAssignment.role_id, UserRoleAssignment.valid_to)
+                      .outerjoin(UserRoleAssignment, UserRoleAssignment.user_id == User.id)
+                      .where(User.id == user_id)).all() if user_id else []
+    user = rows[0][0] if rows else None
     if not user or not user.is_active:
         raise DomainError("UNAUTHENTICATED", "Please sign in again.", 401)
-    roles, perms = load_roles(db, user.id)
+    roles, perms = load_roles(db, user.id, [(r[1], r[2]) for r in rows if r[1]])
     return CurrentUser(user=user, roles=roles, perms=perms)
 
 
@@ -102,6 +109,18 @@ def require_roles(*codes: str):
             raise not_found("Page")
         return cu
     return dep
+
+
+# Full administrative access. A DMD (also given by a ProjectFlow sign-on for a ProjectFlow DMD) always carries
+# SUPER_ADMIN as well (see load_roles), and ProjectFlow admins / MD / directors are mapped to SUPER_ADMIN.
+FULL_ACCESS_ROLES = ("SUPER_ADMIN", "DMD")
+
+
+def require_full_access(cu: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    """Guard for the most sensitive features (audit log, reward settings, system settings)."""
+    if not cu.has_role(*FULL_ACCESS_ROLES):
+        raise not_found("Page")
+    return cu
 
 
 def require_perm(perm: str):

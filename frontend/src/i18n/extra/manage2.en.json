@@ -137,13 +137,13 @@
   },
   "resultsDecision": {
     "title": "Results and awards",
-    "humanNote": "The jury decides. Scores below are guidance only — a person records the decision, a person approves it, and nothing is published automatically.",
+    "humanNote": "The jury decides. Scores below are guidance only — a person records the decision and a person publishes it. Nothing is published automatically.",
     "stepRecord": "1. Record jury decision",
     "stepApprove": "2. Approve",
-    "stepPublish": "3. Publish",
+    "stepPublish": "2. Publish",
     "statusNONE": "No decision recorded",
-    "statusDRAFT": "Decision recorded — waiting for approval",
-    "statusAPPROVED": "Approved — ready to publish",
+    "statusDRAFT": "Decision recorded — ready to publish",
+    "statusAPPROVED": "Decision recorded — ready to publish",
     "statusPUBLISHED": "Results published",
     "pendingReviews": "{{count}} jury reviews are not submitted yet. You can record the decision, but scores may still change.",
     "juryRank": "Jury rank",
@@ -200,7 +200,6 @@
     "exported": "Export downloaded",
     "search": "Search by ID, title or text",
     "chipAll": "All",
-    "chipTriage": "To check first",
     "chipReview": "In review",
     "chipShortlisted": "Shortlisted",
     "chipDelivery": "In delivery",
@@ -220,7 +219,8 @@
     "count": "{{count}} ideas",
     "empty": "No ideas match these filters",
     "emptyHelp": "Try another filter or clear the search.",
-    "clear": "Clear filters"
+    "clear": "Clear filters",
+    "chipClosed": "Closed"
   },
   "dashboards": {
     "title": "Dashboards",

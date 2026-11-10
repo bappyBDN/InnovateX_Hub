@@ -4,6 +4,7 @@ import { RequireAuth, RequireRole } from '@/auth/guards';
 import type { Role } from '@/auth/types';
 import { ErrorState, PageSkeleton } from '@/components/ui/Feedback';
 import LoginPage from '@/features/auth/LoginPage';
+import SsoCallbackPage from '@/features/auth/SsoCallbackPage';
 import SignupPage from '@/features/auth/SignupPage';
 import NotFoundPage from '@/features/misc/NotFoundPage';
 import { AppShell } from './layout/AppShell';
@@ -37,6 +38,7 @@ function RouteError() {
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage />, errorElement: <RouteError /> },
   { path: '/signup', element: <SignupPage />, errorElement: <RouteError /> },
+  { path: '/sso-callback', element: <SsoCallbackPage />, errorElement: <RouteError /> },
   {
     element: (
       <RequireAuth>
@@ -119,6 +121,8 @@ export const router = createBrowserRouter([
       // Everyone
       { path: '/results', element: page(() => import('@/features/results/ResultsPage')) },
       { path: '/catalogue', element: page(() => import('@/features/catalogue/CataloguePage')) },
+      { path: '/inova-registry', element: page(() => import('@/features/registry/InovaRegistryPage')) },
+      { path: '/manage/projects', element: guard(['SUPER_ADMIN', 'PROGRAM_OWNER', 'EXECUTIVE', 'DMD'], page(() => import('@/features/projects/ProjectRewardsPage'))) },
       { path: '/impact', element: page(() => import('@/features/impact/ImpactPage')) },
       { path: '/dashboards', element: page(() => import('@/features/dashboards/DashboardPage')) },
       { path: '/dashboards/:type', element: page(() => import('@/features/dashboards/DashboardPage')) },
@@ -130,7 +134,7 @@ export const router = createBrowserRouter([
       { path: '/admin/invitations', element: guard(SA, page(() => import('@/features/admin/InvitationsPage'))) },
       { path: '/admin/privileges', element: guard(SA, page(() => import('@/features/admin/PrivilegesPage'))) },
       { path: '/admin/users', element: guard(SA, page(() => import('@/features/admin/UsersPage'))) },
-      { path: '/admin/judges', element: guard(SA, page(() => import('@/features/judging/JudgesAdminPage'))) },
+      { path: '/admin/judges', element: guard(['SUPER_ADMIN', 'DMD', 'PROGRAM_OWNER'], page(() => import('@/features/judging/JudgesAdminPage'))) },
       { path: '/admin/org', element: guard(MASTER, page(() => import('@/features/admin/OrgPage'))) },
       { path: '/admin/master-data', element: guard(MASTER, page(() => import('@/features/admin/MasterDataPage'))) },
       { path: '/admin/forms', element: guard(MANAGE, page(() => import('@/features/admin/FormsPage'))) },

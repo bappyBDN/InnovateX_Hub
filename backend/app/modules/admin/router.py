@@ -86,6 +86,11 @@ def update_setting(key: str, body: ValueIn, request: Request, cu: CurrentUser = 
     s.value, s.updated_by = body.value, cu.id
     audit(db, cu.id, "CONFIG_CHANGE", "system_setting", s.id, f"Changed setting {key}", {key: [before, body.value]},
           request.state.request_id)
+    if key.startswith("aes_team_lead_"):
+        from app.modules.projects.router import apply_aes_team_lead   # the AES projects' Team Lead follows it
+        db.flush()
+        db.info.pop("tables", None), db.info.pop("indexes", None)   # read the new value, not the cached one
+        apply_aes_team_lead(db)
     db.commit()
     return {"key": key, "value": s.value}
 

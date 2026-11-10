@@ -1,5 +1,5 @@
 import {
-  BarChart3, Bell, BookOpen, ClipboardCheck, Gavel, ClipboardList, FileSearch, FileText, Flag, GitBranch, Home, Layers,
+  BarChart3, Bell, BookOpen, ClipboardCheck, Database, Gift, Gavel, ClipboardList, FileSearch, FileText, Flag, GitBranch, Home, Layers,
   Lightbulb, LineChart, ListChecks, Mail, Network, PlusCircle, ScrollText, Settings, Settings2, SlidersHorizontal,
   Trophy, UserCog, Users, type LucideIcon,
 } from 'lucide-react';
@@ -60,12 +60,15 @@ export function buildNav(me: Me | undefined): NavGroup[] {
   const program: NavItem[] = [];
   if (has('PROGRAM_OWNER', 'SUPER_ADMIN', 'EXECUTIVE'))
     program.push({ key: 'portfolio', labelKey: 'nav.ideasPortfolio', to: '/manage/ideas', icon: Layers });
+  if (has('SUPER_ADMIN', 'PROGRAM_OWNER', 'EXECUTIVE', 'DMD'))
+    program.push({ key: 'project-rewards', labelKey: 'nav.projectRewards', to: '/manage/projects', icon: Gift });
   if (privileged)
     program.push({ key: 'manage', labelKey: 'nav.manageChallenges', to: '/manage/challenges', icon: Settings2 });
 
   const explore: NavItem[] = [
     { key: 'results', labelKey: 'nav.results', to: '/results', icon: Trophy },
     { key: 'catalogue', labelKey: 'nav.catalogue', to: '/catalogue', icon: BookOpen },
+    { key: 'registry', labelKey: 'nav.inovaRegistry', to: '/inova-registry', icon: Database },
     { key: 'impact', labelKey: 'nav.impact', to: '/impact', icon: LineChart },
     { key: 'dashboards', labelKey: 'nav.dashboards', to: '/dashboards', icon: BarChart3 },
     { key: 'notifications', labelKey: 'nav.notifications', to: '/notifications', icon: Bell },
@@ -76,7 +79,6 @@ export function buildNav(me: Me | undefined): NavGroup[] {
   if (sa) {
     admin.push({ key: 'a-home', labelKey: 'adminPanel.navHome', to: '/admin', icon: Settings, end: true });
     admin.push({ key: 'a-users', labelKey: 'nav.adminUsers', to: '/admin/users', icon: UserCog });
-    admin.push({ key: 'a-judges', labelKey: 'judging.adminTitle', to: '/admin/judges', icon: Gavel });
     admin.push({ key: 'a-invites', labelKey: 'adminPanel.navInvitations', to: '/admin/invitations', icon: Mail });
     admin.push({ key: 'a-priv', labelKey: 'adminPanel.navPrivileges', to: '/admin/privileges', icon: ListChecks });
   }
@@ -84,6 +86,7 @@ export function buildNav(me: Me | undefined): NavGroup[] {
     admin.push({ key: 'a-org', labelKey: 'nav.adminOrg', to: '/admin/org', icon: Network });
     admin.push({ key: 'a-md', labelKey: 'nav.adminMasterData', to: '/admin/master-data', icon: ListChecks });
   }
+  if (sa || has('DMD', 'PROGRAM_OWNER')) admin.push({ key: 'a-judges', labelKey: 'judging.adminTitle', to: '/admin/judges', icon: Gavel });
   if (privileged) {
     admin.push({ key: 'a-forms', labelKey: 'nav.adminForms', to: '/admin/forms', icon: FileText });
     admin.push({ key: 'a-score', labelKey: 'nav.adminScorecards', to: '/admin/scorecards', icon: SlidersHorizontal });

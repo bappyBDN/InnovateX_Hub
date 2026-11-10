@@ -45,6 +45,16 @@ DEFAULT_TEMPLATES = {
         "- Follow your entries and read the judges' feedback.\n\n"
         "Open: {{secure_link}}\n\n"
         "This is an automatic message from {{app_name}}. Details are shown only after you sign in."),
+    "PROJECT_REWARD_CHALLENGE": (
+        "[InnovateX] Reward challenge for {{project_code}}: ৳{{reward_amount}}",
+        "Dear {{recipient_name}},\n\n"
+        "A reward challenge has been {{action}} for your project {{project_code}} – {{project_name}}.\n\n"
+        "- Reward: ৳{{reward_amount}} (BDT)\n"
+        "- Reach {{target_percentage}}% completion by {{target_date}}\n"
+        "- Current progress: {{completion}}%\n\n"
+        "{{note}}\n\n"
+        "Open: {{secure_link}}\n\n"
+        "Set by {{set_by}}. This is an automatic message from {{app_name}}."),
 }
 
 URL = re.compile(r"https?://[^\s<>\"]+")

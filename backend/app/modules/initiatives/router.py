@@ -28,6 +28,14 @@ from app.shared.util import en, paginate, setting, user_brief
 router = APIRouter(tags=["ideas"])
 STAFF = ("SUPER_ADMIN", "PROGRAM_OWNER", "EXECUTIVE", "JUDGE")
 MANAGERS = ("SUPER_ADMIN", "PROGRAM_OWNER")
+JUDGE_PICKERS = ("SUPER_ADMIN", "DMD", "PROGRAM_OWNER")      # may choose and change the judges of an idea
+
+
+def _owner_can_edit(db: Session, ini: Initiative, role: str) -> bool:
+    """The owner edits a draft, or a submitted idea while a judge's question is open."""
+    if role not in ("OWNER", "MEMBER"):
+        return False
+    return ini.current_state_code == "DRAFT" or (ini.current_state_code == "UNDER_REVIEW" and svc.has_open_question(db, ini))
 
 
 class IdeaIn(BaseModel):
@@ -141,13 +149,14 @@ def _detail(db: Session, cu: CurrentUser, ini: Initiative, role: str) -> dict:
         "currency_code": ini.currency_code, "org_unit_id": ini.org_unit_id, "org_unit": en(unit.name_i18n) if unit else None,
         "sponsor": user_brief(db, ini.sponsor_user_id), "submitted_by": user_brief(db, ini.submitted_by_user_id),
         "on_behalf_of": user_brief(db, ini.on_behalf_of_user_id), "members": svc.members(db, ini),
-        "my_role": role, "can_edit": role in ("OWNER", "MEMBER") and ini.current_state_code in ("DRAFT", "CLARIFICATION_REQUESTED"),
+        "my_role": role, "can_edit": _owner_can_edit(db, ini, role),
+        "has_open_question": svc.has_open_question(db, ini),
         "can_upload": role in ("OWNER", "MEMBER") or cu.privileged,
         "allowed_actions": svc.allowed_actions(db, cu, ini, role),
         "missing_fields": svc.missing_fields(ini) if ini.current_state_code == "DRAFT" else {},
         "is_published_to_catalogue": ini.is_published_to_catalogue,
         "confidential": ini.data_classification_code in ("CONFIDENTIAL", "RESTRICTED"),
-        "can_manage": cu.privileged, "can_assign_judges": cu.has_role("SUPER_ADMIN"),
+        "can_manage": cu.privileged, "can_assign_judges": cu.has_role(*JUDGE_PICKERS),
     })
     if ini.duplicate_of_id:
         original = db.get(Initiative, ini.duplicate_of_id)
@@ -197,7 +206,7 @@ def get_initiative(key: str, request: Request, cu: CurrentUser = Depends(get_cur
 def update_initiative(key: str, body: IdeaIn, request: Request, cu: CurrentUser = Depends(get_current_user),
                       db: Session = Depends(get_db)):
     ini, role = get_initiative_or_404(db, cu, key)
-    editable_by_owner = role in ("OWNER", "MEMBER") and ini.current_state_code in ("DRAFT", "CLARIFICATION_REQUESTED")
+    editable_by_owner = _owner_can_edit(db, ini, role)
     if not editable_by_owner and not cu.privileged:
         raise DomainError("NOT_EDITABLE", "A submitted idea can't be edited. Ask the innovation office to return it to you.", 409)
     if body.row_version is not None and body.row_version != ini.row_version:
@@ -234,31 +243,34 @@ def submit(key: str, request: Request, cu: CurrentUser = Depends(get_current_use
         raise DomainError("FORM_INCOMPLETE", "Some required fields are missing.", 422, {"fields": missing})
     now = utcnow()
     ini.code = next_code(db, "INNO", 6)       # RB-02: unique and never changed
-    ini.current_state_code, ini.submitted_at, ini.current_stage_entered_at = "SUBMITTED", now, now
+    ini.current_state_code, ini.submitted_at, ini.current_stage_entered_at = "UNDER_REVIEW", now, now
     db.add(InitiativeVersion(initiative_id=ini.id, version_no=1, snapshot=row(ini, exclude=("extra",)), reason="SUBMIT",
                              created_by=cu.id))
-    record_history(db, "initiative", ini.id, "DRAFT", "SUBMITTED", "SUBMIT", cu.id)
+    record_history(db, "initiative", ini.id, "DRAFT", "UNDER_REVIEW", "SUBMIT", cu.id)
     audit(db, cu.id, "CREATE", "initiative", ini.id, f"Submitted {ini.code}", {}, request.state.request_id)
     unit = db.get(OrgUnit, ini.org_unit_id) if ini.org_unit_id else None
     confidential = ini.data_classification_code in ("CONFIDENTIAL", "RESTRICTED")
     people = list(dict.fromkeys([ini.submitted_by_user_id, ini.owner_user_id]))
     variables = {"innovation_id": ini.code, "title": ini.title, "submitter": cu.user.full_name,
                  "owner": (user_brief(db, ini.owner_user_id) or {}).get("full_name"),
-                 "function": en(unit.name_i18n) if unit else "", "status": "Submitted",
+                 "function": en(unit.name_i18n) if unit else "", "status": "In review",
                  # Confidential details never go into an email body; the reader must sign in.
                  "summary": "Confidential — sign in to read the details." if confidential else (ini.summary or "")[:300],
                  "classification": ini.data_classification_code, "submitted_at": iso(now),
                  "review_sla": f"{setting(db, 'triage_sla_days', 5)} working days"}
     publish_event(db, "INITIATIVE_SUBMITTED", "initiative", ini.id, cu.id, users=people,
-                  title=f"Idea submitted: {ini.code}", body="We'll check it and get back to you within 5 working days.",
+                  title=f"Idea submitted: {ini.code}", body="It is with the judges now. You'll be told when they decide.",
                   link=f"/ideas/{ini.code}", vars=variables)
-    # Second event: goes to the designated sponsor/reviewer mailbox configured in Admin (notification rules).
+    # Straight to the default idea judges; the innovation office is only asked to act when none are set up.
+    judges = svc.assign_default_judges(db, ini, cu.id)
     office = _role_users(db, "PROGRAM_OWNER")
     publish_event(db, "INITIATIVE_NEEDS_REVIEW", "initiative", ini.id, cu.id, users=office,
-                  title=f"New idea to triage: {ini.code}", body=ini.title, link=f"/ideas/{ini.code}", needs_action=True,
-                  vars=variables)
+                  title=f"New idea: {ini.code}" if judges else f"New idea needs judges: {ini.code}",
+                  body=f"{ini.title}. Sent to {', '.join(judges)}." if judges else
+                       f"{ini.title}. No default idea judges are set up, so choose judges for it.",
+                  link=f"/ideas/{ini.code}", needs_action=not judges, vars=variables)
     db.commit()
-    return {"id": ini.id, "code": ini.code, "submitted_at": iso(now)}
+    return {"id": ini.id, "code": ini.code, "submitted_at": iso(now), "judges": judges}
 
 
 def _role_users(db: Session, role_code: str) -> list[str]:
@@ -308,9 +320,9 @@ class AssignIn(BaseModel):
 
 
 @router.post("/initiatives/{key}/assign-reviewers")
-def assign_reviewers(key: str, body: AssignIn, request: Request, cu: CurrentUser = Depends(require_roles("SUPER_ADMIN")),
+def assign_reviewers(key: str, body: AssignIn, request: Request, cu: CurrentUser = Depends(require_roles(*JUDGE_PICKERS)),
                      db: Session = Depends(get_db)):
-    """Older address, kept working. Only the admin chooses judges (see evaluation/judges_router.py)."""
+    """Older address, kept working (see evaluation/judges_router.py)."""
     ini, _ = get_initiative_or_404(db, cu, key)
     rnd = db.scalar(select(ReviewRound).where(ReviewRound.round_type == "IDEA_REVIEW", ReviewRound.challenge_id.is_(None)))
     if not rnd:
@@ -348,15 +360,13 @@ def ask(key: str, body: QuestionIn, cu: CurrentUser = Depends(require_roles(*MAN
     ini, _ = get_initiative_or_404(db, cu, key)
     if not body.question.strip():
         raise DomainError("QUESTION_REQUIRED", "Write your question.")
-    if ini.current_state_code not in ("TRIAGE", "UNDER_REVIEW", "SUBMITTED", "CLARIFICATION_REQUESTED"):
-        raise DomainError("ACTION_NOT_ALLOWED", "Questions can be asked during triage and review.", 409)
+    if ini.current_state_code != "UNDER_REVIEW":
+        raise DomainError("ACTION_NOT_ALLOWED", "Questions can be asked while the idea is in review.", 409)
+    # The idea stays in review; the open question lets the owner edit and reply.
     c = ClarificationRequest(entity_type="initiative", entity_id=ini.id, requested_by=cu.id, question=body.question.strip(),
-                             due_at=utcnow() + timedelta(days=body.due_days), status="OPEN",
-                             resume_state=ini.current_state_code if ini.current_state_code != "CLARIFICATION_REQUESTED" else "UNDER_REVIEW")
+                             due_at=utcnow() + timedelta(days=body.due_days), status="OPEN", resume_state="UNDER_REVIEW")
     db.add(c)
-    record_history(db, "initiative", ini.id, ini.current_state_code, "CLARIFICATION_REQUESTED", "REQUEST_CLARIFICATION", cu.id,
-                   body.question)
-    ini.current_state_code, ini.current_stage_entered_at = "CLARIFICATION_REQUESTED", utcnow()
+    record_history(db, "initiative", ini.id, "UNDER_REVIEW", "UNDER_REVIEW", "REQUEST_CLARIFICATION", cu.id, body.question)
     publish_event(db, "CLARIFICATION_REQUESTED", "initiative", ini.id, cu.id, users=esvc.people_of(db, "initiative", ini.id),
                   title=f"A reviewer asked a question: {ini.code}", body=body.question[:300], link=f"/ideas/{ini.code}",
                   needs_action=True, vars={"code": ini.code, "question": body.question, "due_date": iso(c.due_at)})
@@ -376,7 +386,7 @@ def publish_to_catalogue(key: str, body: PublishIn, request: Request, cu: Curren
     ini, _ = get_initiative_or_404(db, cu, key)
     if ini.data_classification_code in ("CONFIDENTIAL", "RESTRICTED"):
         raise DomainError("CONFIDENTIAL_NOT_PUBLISHABLE", "Confidential ideas can't appear in the catalogue.", 409)
-    if ini.current_state_code not in ("PRODUCTION", "IMPACT_VERIFIED", "SCALED"):
+    if ini.current_state_code not in ("PRODUCTION", "IMPACT_VERIFIED"):
         raise DomainError("NOT_IMPLEMENTED_YET", "Only implemented or scaled ideas can be published.", 409)
     if ini.is_published_to_catalogue:
         raise DomainError("ALREADY_PUBLISHED", "This idea is already in the catalogue.", 409)

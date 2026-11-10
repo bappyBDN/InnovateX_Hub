@@ -176,7 +176,8 @@
       "scoreOf": "{{score}} out of 100",
       "noSponsor": "No sponsor yet",
       "submittedBy": "Submitted by",
-      "onBehalf": "for {{name}}"
+      "onBehalf": "for {{name}}",
+      "facts": "Key facts"
     },
     "clarification": {
       "title": "A judge asked a question",
@@ -238,7 +239,7 @@
       "missingTitle": "This step needs the following first"
     },
     "staff": {
-      "assign": "Choose judges",
+      "assign": "Change judges",
       "assignHelp": "Choose judges. Anyone with a conflict of interest is blocked automatically.",
       "judges": "Judges",
       "alreadyAssigned": "Already assigned",
@@ -270,6 +271,17 @@
       "status": "Status",
       "due": "Due",
       "recommendation": "Recommendation"
+    },
+    "decision": {
+      "title": "Review and decision",
+      "subtitle": "The judges score the idea; you decide what happens next. Every decision is recorded with your name and the time.",
+      "judges": "Judges",
+      "progress": "{{done}} of {{total}} scored",
+      "noJudges": "No judges yet. Choose judges, or set the default idea judges under Judges → Ideas so new ideas go to them automatically.",
+      "average": "Average score",
+      "actions": "Decisions",
+      "decide": "Decide",
+      "more": "More"
     }
   },
   "impact": {

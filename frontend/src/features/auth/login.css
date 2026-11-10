@@ -1,0 +1,58 @@
+/* Login page: the dark brand panel uses the landing page's "night" palette, teal and gold glows. */
+.ix-login-panel {
+  position: relative;
+  overflow: hidden;
+  background: #0e1e2b;
+  color: #e8eff3;
+}
+.ix-login-panel::before,
+.ix-login-panel::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(70px);
+}
+.ix-login-panel::before {
+  width: min(560px, 90%);
+  aspect-ratio: 1;
+  left: -18%;
+  top: -14%;
+  background: radial-gradient(circle, rgba(70, 201, 195, 0.3), rgba(70, 201, 195, 0) 68%);
+}
+.ix-login-panel::after {
+  width: min(600px, 95%);
+  aspect-ratio: 1;
+  right: -22%;
+  bottom: -18%;
+  background: radial-gradient(circle, rgba(232, 163, 23, 0.24), rgba(232, 163, 23, 0) 66%);
+}
+.ix-login-panel > * {
+  position: relative;
+  z-index: 1;
+}
+.ix-display {
+  font-family: 'Archivo', 'Arial Narrow', system-ui, sans-serif;
+  font-stretch: 112%;
+}
+.ix-login-rise {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: ixRise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+.ix-login-rise[data-d='1'] { animation-delay: 0.08s; }
+.ix-login-rise[data-d='2'] { animation-delay: 0.18s; }
+.ix-login-rise[data-d='3'] { animation-delay: 0.28s; }
+@keyframes ixRise {
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ix-login-panel::before { animation: ixDrift 18s ease-in-out infinite alternate; }
+  .ix-login-panel::after { animation: ixDrift 24s ease-in-out infinite alternate-reverse; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ix-login-rise { opacity: 1; transform: none; animation: none; }
+}
+@keyframes ixDrift {
+  to { transform: translate3d(5%, 6%, 0) scale(1.08); }
+}

@@ -65,9 +65,9 @@ export default function IdeaDetailPage() {
   const d = idea.data!;
   const openQuestions = d.clarifications.filter((c) => c.status === 'OPEN');
   const mine = d.my_role === 'OWNER' || d.my_role === 'MEMBER';
-  const catalogueReady = d.can_manage && !d.confidential && !d.is_published_to_catalogue && ['PRODUCTION', 'IMPACT_VERIFIED', 'SCALED'].includes(d.current_state_code);
-  const canAsk = d.can_manage && ['SUBMITTED', 'TRIAGE', 'UNDER_REVIEW', 'CLARIFICATION_REQUESTED'].includes(d.current_state_code);
-  const canAssign = !!d.can_assign_judges && ['TRIAGE', 'UNDER_REVIEW', 'CLARIFICATION_REQUESTED'].includes(d.current_state_code);
+  const catalogueReady = d.can_manage && !d.confidential && !d.is_published_to_catalogue && ['PRODUCTION', 'IMPACT_VERIFIED'].includes(d.current_state_code);
+  const canAsk = d.can_manage && d.current_state_code === 'UNDER_REVIEW';
+  const canAssign = !!d.can_assign_judges && d.current_state_code === 'UNDER_REVIEW';
 
   return (
     <>
@@ -127,33 +127,16 @@ export default function IdeaDetailPage() {
           )}
         </Card>
 
-        {(d.allowed_actions.length > 0 || canAsk || canAssign || catalogueReady) && (
-          <Card>
-            <CardHeader title={t('ideas.detail.actions')} subtitle={mine ? t('ideas.detail.actionsOwner') : t('ideas.detail.actionsStaff')} />
-            <div className="mt-3 flex flex-wrap gap-2">
-              {d.allowed_actions.map((a) => (
-                <Button key={a.action_code} variant={a.tone} onClick={() => setAction(a)}>
-                  {a.label}
-                </Button>
-              ))}
-              {canAssign && (
-                <Button variant="secondary" icon={<UserPlus className="h-4 w-4" aria-hidden />} onClick={() => setDialog('assign')}>
-                  {t('ideas.staff.assign')}
-                </Button>
-              )}
-              {canAsk && (
-                <Button variant="secondary" icon={<HelpCircle className="h-4 w-4" aria-hidden />} onClick={() => setDialog('ask')}>
-                  {t('ideas.staff.ask')}
-                </Button>
-              )}
-              {catalogueReady && (
-                <Button variant="secondary" icon={<BookMarked className="h-4 w-4" aria-hidden />} onClick={() => setDialog('publish')}>
-                  {t('ideas.staff.publish')}
-                </Button>
-              )}
-            </div>
-            {d.is_published_to_catalogue && <p className="mt-3 text-sm text-success">{t('ideas.staff.inCatalogue')}</p>}
-          </Card>
+        {(d.allowed_actions.length > 0 || canAsk || canAssign || catalogueReady || (d.reviews?.length ?? 0) > 0) && (
+          <DecisionCard
+            d={d}
+            mine={mine}
+            canAsk={canAsk}
+            canAssign={canAssign}
+            catalogueReady={catalogueReady}
+            onAction={setAction}
+            onDialog={setDialog}
+          />
         )}
 
         <Tabs
@@ -207,6 +190,110 @@ export default function IdeaDetailPage() {
       {dialog === 'ask' && <AskDialog idea={d} onClose={() => setDialog(null)} onDone={refresh} />}
       {dialog === 'publish' && <PublishDialog idea={d} onClose={() => setDialog(null)} onDone={refresh} />}
     </>
+  );
+}
+
+// ---- Review and decision: judges' progress on the left, the decisions on the right ---------------
+function DecisionCard({
+  d,
+  mine,
+  canAsk,
+  canAssign,
+  catalogueReady,
+  onAction,
+  onDialog,
+}: {
+  d: IdeaDetail;
+  mine: boolean;
+  canAsk: boolean;
+  canAssign: boolean;
+  catalogueReady: boolean;
+  onAction: (a: IdeaAction) => void;
+  onDialog: (k: 'assign' | 'ask' | 'publish') => void;
+}) {
+  const { t } = useTranslation();
+  const reviews = d.reviews ?? [];
+  const done = reviews.filter((r) => r.status === 'SUBMITTED');
+  const scores = done.map((r) => r.weighted_score).filter((x): x is number => x != null);
+  const average = scores.length ? scores.reduce((sum, x) => sum + x, 0) / scores.length : null;
+  const showJudges = !mine && (reviews.length > 0 || d.current_state_code === 'UNDER_REVIEW');
+  const hasButtons = d.allowed_actions.length > 0 || canAsk || canAssign || catalogueReady;
+
+  return (
+    <Card>
+      <CardHeader title={mine ? t('ideas.detail.actions') : t('ideas.decision.title')} subtitle={mine ? t('ideas.detail.actionsOwner') : t('ideas.decision.subtitle')} />
+      <div className={cn('grid gap-6', showJudges && hasButtons && 'lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]')}>
+        {showJudges && (
+          <section aria-labelledby="judges-progress">
+            <div className="flex items-baseline justify-between gap-3">
+              <h3 id="judges-progress" className="text-sm font-semibold text-ink">
+                {t('ideas.decision.judges')}
+              </h3>
+              <span className="tabular text-sm text-ink-muted">{t('ideas.decision.progress', { done: done.length, total: reviews.length })}</span>
+            </div>
+            <ProgressBar value={reviews.length ? (done.length * 100) / reviews.length : 0} className="mt-2" label={t('ideas.decision.judges')} />
+            {reviews.length === 0 ? (
+              <p className="mt-3 rounded-panel border border-dashed border-warning bg-warning-soft px-4 py-3 text-sm text-ink">{t('ideas.decision.noJudges')}</p>
+            ) : (
+              <ul className="mt-3 divide-y divide-line rounded-panel border border-line">
+                {reviews.map((r) => (
+                  <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-3 py-2 text-sm">
+                    <span className="truncate font-medium text-ink">{r.reviewer ?? '—'}</span>
+                    <span className="tabular w-14 text-right text-ink">{r.weighted_score != null ? num(r.weighted_score, 1) : '—'}</span>
+                    <StatusBadge status={r.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {average != null && (
+              <p className="mt-3 flex items-baseline justify-between gap-3 text-sm">
+                <span className="text-ink-muted">{t('ideas.decision.average')}</span>
+                <span className="tabular text-lg font-semibold text-ink">{num(average, 1)} / 100</span>
+              </p>
+            )}
+          </section>
+        )}
+        {hasButtons && (
+          <section aria-label={t('ideas.decision.actions')} className="space-y-4">
+            {d.allowed_actions.length > 0 && (
+              <div>
+                {!mine && <h3 className="text-sm font-semibold text-ink">{t('ideas.decision.decide')}</h3>}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {d.allowed_actions.map((a) => (
+                    <Button key={a.action_code} variant={a.tone} onClick={() => onAction(a)}>
+                      {a.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(canAssign || canAsk || catalogueReady) && (
+              <div className={cn(d.allowed_actions.length > 0 && 'border-t border-line pt-4')}>
+                <h3 className="text-sm font-semibold text-ink">{t('ideas.decision.more')}</h3>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {canAssign && (
+                    <Button variant="secondary" size="sm" icon={<UserPlus className="h-4 w-4" aria-hidden />} onClick={() => onDialog('assign')}>
+                      {t('ideas.staff.assign')}
+                    </Button>
+                  )}
+                  {canAsk && (
+                    <Button variant="secondary" size="sm" icon={<HelpCircle className="h-4 w-4" aria-hidden />} onClick={() => onDialog('ask')}>
+                      {t('ideas.staff.ask')}
+                    </Button>
+                  )}
+                  {catalogueReady && (
+                    <Button variant="secondary" size="sm" icon={<BookMarked className="h-4 w-4" aria-hidden />} onClick={() => onDialog('publish')}>
+                      {t('ideas.staff.publish')}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+      </div>
+      {d.is_published_to_catalogue && <p className="mt-4 text-sm text-success">{t('ideas.staff.inCatalogue')}</p>}
+    </Card>
   );
 }
 
@@ -265,6 +352,17 @@ function Row({ label, children, rich }: { label: string; children: React.ReactNo
   );
 }
 
+/** A short fact: label on the left, value on the right, every row on the same grid so they line up. */
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  const empty = children === null || children === undefined || children === '';
+  return (
+    <div className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] items-baseline gap-3 py-2.5">
+      <dt className="text-sm text-ink-muted">{label}</dt>
+      <dd className="break-words text-sm font-medium text-ink">{empty ? '—' : children}</dd>
+    </div>
+  );
+}
+
 function Overview({ d }: { d: IdeaDetail }) {
   const { t } = useTranslation();
   const lookups = useLookups();
@@ -276,7 +374,7 @@ function Overview({ d }: { d: IdeaDetail }) {
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <Card className="lg:col-span-2">
-        <dl className="space-y-4">
+        <dl className="space-y-6">
           {d.summary && <Row label={t('ideas.fields.summary')}>{d.summary}</Row>}
           <Row rich label={t('ideas.fields.problem')}>{d.problem_statement}</Row>
           <Row rich label={t('ideas.fields.affected')}>{d.affected_users}</Row>
@@ -289,19 +387,20 @@ function Overview({ d }: { d: IdeaDetail }) {
         </dl>
       </Card>
       <Card>
-        <dl className="space-y-4">
-          <Row label={t('ideas.fields.type')}>{label('INNOVATION_TYPE', d.innovation_type_code)}</Row>
-          <Row label={t('ideas.fields.kpi')}>{d.primary_kpi}</Row>
-          <Row label={t('ideas.fields.baseline')}>{d.baseline_value}</Row>
-          <Row label={t('ideas.fields.target')}>{d.target_value}</Row>
-          <Row label={t('ideas.fields.benefitTypes')}>{list('BENEFIT_TYPE', d.benefit_types)}</Row>
-          <Row label={t('ideas.fields.scalability')}>{label('SCALABILITY_LEVEL', d.scalability_level_code)}</Row>
-          <Row label={t('ideas.fields.classification')}>{label('DATA_CLASSIFICATION', d.data_classification_code)}</Row>
-          <Row label={t('ideas.fields.risks')}>{list('RISK_TYPE', d.risk_flags)}</Row>
-          <Row label={t('ideas.fields.timeline')}>{d.expected_timeline}</Row>
-          <Row label={t('ideas.fields.cost')}>{d.estimated_cost != null ? money(d.estimated_cost, d.currency_code) : ''}</Row>
-          <Row label={t('ideas.detail.submitted')}>{d.submitted_at ? formatDateTime(d.submitted_at) : ''}</Row>
-          {d.score_latest != null && <Row label={t('ideas.detail.score')}>{t('ideas.detail.scoreOf', { score: num(d.score_latest, 1) })}</Row>}
+        <h2 className="text-sm font-semibold text-ink">{t('ideas.detail.facts')}</h2>
+        <dl className="mt-1 divide-y divide-line">
+          <Fact label={t('ideas.fields.type')}>{label('INNOVATION_TYPE', d.innovation_type_code)}</Fact>
+          <Fact label={t('ideas.fields.kpi')}>{d.primary_kpi}</Fact>
+          <Fact label={t('ideas.fields.baseline')}>{d.baseline_value}</Fact>
+          <Fact label={t('ideas.fields.target')}>{d.target_value}</Fact>
+          <Fact label={t('ideas.fields.benefitTypes')}>{list('BENEFIT_TYPE', d.benefit_types)}</Fact>
+          <Fact label={t('ideas.fields.scalability')}>{label('SCALABILITY_LEVEL', d.scalability_level_code)}</Fact>
+          <Fact label={t('ideas.fields.classification')}>{label('DATA_CLASSIFICATION', d.data_classification_code)}</Fact>
+          <Fact label={t('ideas.fields.risks')}>{list('RISK_TYPE', d.risk_flags)}</Fact>
+          <Fact label={t('ideas.fields.timeline')}>{d.expected_timeline}</Fact>
+          <Fact label={t('ideas.fields.cost')}>{d.estimated_cost != null ? money(d.estimated_cost, d.currency_code) : ''}</Fact>
+          <Fact label={t('ideas.detail.submitted')}>{d.submitted_at ? formatDateTime(d.submitted_at) : ''}</Fact>
+          {d.score_latest != null && <Fact label={t('ideas.detail.score')}>{t('ideas.detail.scoreOf', { score: num(d.score_latest, 1) })}</Fact>}
         </dl>
       </Card>
     </div>

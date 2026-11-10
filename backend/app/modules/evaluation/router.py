@@ -312,10 +312,10 @@ def ask_clarification(assignment_id: str, body: QuestionIn, cu: CurrentUser = De
         entry.status_code = "CLARIFICATION_REQUESTED"
         people, link, code = csvc.notify_entry(db, entry), f"/entries/{entry.id}", entry.code
     else:
-        ini = db.get(Initiative, a.entity_id)
-        c.resume_state = ini.current_state_code if ini.current_state_code != "CLARIFICATION_REQUESTED" else "UNDER_REVIEW"
-        record_history(db, "initiative", ini.id, ini.current_state_code, "CLARIFICATION_REQUESTED", "REQUEST_CLARIFICATION", cu.id)
-        ini.current_state_code, ini.current_stage_entered_at = "CLARIFICATION_REQUESTED", utcnow()
+        ini = db.get(Initiative, a.entity_id)      # the idea stays in review while the question is open
+        c.resume_state = ini.current_state_code
+        record_history(db, "initiative", ini.id, ini.current_state_code, ini.current_state_code, "REQUEST_CLARIFICATION",
+                       cu.id, body.question.strip())
         people, link, code = svc.people_of(db, "initiative", ini.id), f"/ideas/{ini.code}", ini.code
     db.add(c)
     publish_event(db, "CLARIFICATION_REQUESTED", a.entity_type, a.entity_id, cu.id, users=people,

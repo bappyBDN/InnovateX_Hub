@@ -1,4 +1,4 @@
-"""Choosing judges. Only the admin (Super Admin; the DMD counts as one) can add, change or remove judges.
+"""Choosing judges. The Super Admin, the DMD and Program Owners can add, change or remove judges.
 
 Judges are chosen for a challenge (all stages or only some) or for one idea. Anyone with an account can be chosen,
 and people without an account can be invited by email.
@@ -17,8 +17,8 @@ from app.shared.access import get_initiative_or_404
 from app.shared.util import en
 
 router = APIRouter(tags=["judges"])
-ADMIN = ("SUPER_ADMIN",)
-VIEWERS = ("SUPER_ADMIN", "PROGRAM_OWNER", "EXECUTIVE")
+ADMIN = ("SUPER_ADMIN", "DMD", "PROGRAM_OWNER")
+VIEWERS = ("SUPER_ADMIN", "DMD", "PROGRAM_OWNER", "EXECUTIVE")
 
 
 class JudgesIn(BaseModel):
@@ -164,5 +164,64 @@ def remove_entry_judge(entry_id: str, user_id: str, request: Request, cu: Curren
 def cancel_invite(invite_id: str, request: Request, cu: CurrentUser = Depends(require_roles(*ADMIN)), db: Session = Depends(get_db)):
     judging.revoke_invite(db, invite_id)
     audit(db, cu.id, "CONFIG_CHANGE", "judge_invite", invite_id, "Cancelled a judge invitation", {}, request.state.request_id)
+    db.commit()
+    return {"ok": True}
+
+
+# ---- Default idea judges: every newly submitted idea goes to these people -----------------------------
+def _idea_panel(db: Session):
+    from app.modules.evaluation.models import ReviewRound
+    from sqlalchemy import select
+    rnd = db.scalar(select(ReviewRound).where(ReviewRound.round_type == "IDEA_REVIEW", ReviewRound.challenge_id.is_(None)))
+    if not rnd or not rnd.panel_id:
+        raise DomainError("ROUND_MISSING", "Idea judging is not set up yet. Restart the server once to create it.")
+    return rnd.panel_id
+
+
+@router.get("/idea-judges")
+def list_default_idea_judges(cu: CurrentUser = Depends(require_roles(*VIEWERS)), db: Session = Depends(get_db)):
+    from sqlalchemy import select
+    from app.modules.evaluation.models import PanelMember
+    from app.shared.util import user_brief
+    panel_id = _idea_panel(db)
+    people = [user_brief(db, uid) for uid in db.scalars(select(PanelMember.user_id).where(PanelMember.panel_id == panel_id)).all()]
+    people = sorted([p for p in people if p], key=lambda p: (p.get("full_name") or "").lower())
+    return {"judges": people, "can_edit": cu.has_role(*ADMIN)}
+
+
+@router.post("/idea-judges")
+def add_default_idea_judges(body: JudgesIn, request: Request, cu: CurrentUser = Depends(require_roles(*ADMIN)),
+                            db: Session = Depends(get_db)):
+    from sqlalchemy import select
+    from app.modules.evaluation.models import PanelMember
+    from app.modules.identity.models import User
+    if not body.user_ids:
+        raise DomainError("NO_ONE_CHOSEN", "Choose at least one person.")
+    panel_id = _idea_panel(db)
+    have = set(db.scalars(select(PanelMember.user_id).where(PanelMember.panel_id == panel_id)).all())
+    added = []
+    for uid in dict.fromkeys(body.user_ids):
+        user = db.get(User, uid)
+        if user and user.is_active and uid not in have:
+            db.add(PanelMember(panel_id=panel_id, user_id=uid, vote_weight=1, created_by=cu.id))
+            added.append(user.full_name)
+    audit(db, cu.id, "CONFIG_CHANGE", "panel", panel_id, f"Default idea judges added: {', '.join(added) or 'no change'}", {},
+          request.state.request_id)
+    db.commit()
+    return {"added": added, "created": len(added), "skipped": [], "invited": [], "invalid_emails": []}
+
+
+@router.delete("/idea-judges/{user_id}")
+def remove_default_idea_judge(user_id: str, request: Request, cu: CurrentUser = Depends(require_roles(*ADMIN)),
+                              db: Session = Depends(get_db)):
+    from sqlalchemy import select
+    from app.modules.evaluation.models import PanelMember
+    panel_id = _idea_panel(db)
+    m = db.scalar(select(PanelMember).where(PanelMember.panel_id == panel_id, PanelMember.user_id == user_id))
+    if not m:
+        raise DomainError("JUDGE_NOT_FOUND", "This person is not a default idea judge.", 404)
+    db.delete(m)
+    audit(db, cu.id, "CONFIG_CHANGE", "panel", panel_id, "Removed a default idea judge", {"judge": [user_id, None]},
+          request.state.request_id)
     db.commit()
     return {"ok": True}

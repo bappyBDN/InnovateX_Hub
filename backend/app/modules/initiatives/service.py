@@ -28,32 +28,23 @@ EDITABLE = ["title", "summary", "problem_statement", "affected_users", "current_
             "baseline_value", "target_value", "expected_benefit", "expected_timeline", "estimated_cost", "dependencies",
             "declaration_accepted", "on_behalf_of_user_id", "content"]
 
-STAGES = [("DRAFT", "Draft"), ("SUBMITTED", "Submitted"), ("TRIAGE", "Triage"), ("REVIEW", "Review"),
-          ("PROTOTYPE", "Prototype"), ("DEMO", "Demo"), ("PILOT", "Pilot"), ("PRODUCTION", "Production"),
-          ("IMPACT", "Impact verified"), ("SCALED", "Scaled")]
-STAGE_INDEX = {"DRAFT": 0, "SUBMITTED": 1, "TRIAGE": 2, "DUPLICATE": 2, "UNDER_REVIEW": 3, "CLARIFICATION_REQUESTED": 3,
-               "ON_HOLD": 3, "NOT_SELECTED": 3, "SHORTLISTED": 3, "PROTOTYPE": 4, "DEMO_VALIDATION": 5, "PILOT": 6,
-               "PRODUCTION": 7, "IMPACT_VERIFIED": 8, "SCALED": 9, "CLOSED": 9}
-NOTES = {"ON_HOLD": "On hold", "NOT_SELECTED": "In the Idea Bank", "DUPLICATE": "Linked as duplicate",
-         "CLARIFICATION_REQUESTED": "Question from the reviewer", "SHORTLISTED": "Shortlisted", "CLOSED": "Closed"}
+STAGES = [("DRAFT", "Draft"), ("UNDER_REVIEW", "In review"), ("SHORTLISTED", "Shortlisted"), ("PROTOTYPE", "Demo"),
+          ("PILOT", "Pilot"), ("PRODUCTION", "Live"), ("IMPACT_VERIFIED", "Impact verified")]
+STAGE_INDEX = {"DRAFT": 0, "UNDER_REVIEW": 1, "NOT_SELECTED": 1, "SHORTLISTED": 2, "PROTOTYPE": 3, "PILOT": 4,
+               "PRODUCTION": 5, "IMPACT_VERIFIED": 6, "CLOSED": 6}
+NOTES = {"NOT_SELECTED": "In the Idea Bank", "SHORTLISTED": "Shortlisted", "CLOSED": "Closed"}
 NEXT = {
     "DRAFT": ("Finish and submit your idea.", "Continue idea", "edit"),
-    "SUBMITTED": ("Submitted. The innovation office will check it within 5 working days.", None, None),
-    "TRIAGE": ("The innovation office is checking completeness, duplicates and routing.", None, None),
-    "UNDER_REVIEW": ("Your idea is with the reviewers.", None, None),
-    "CLARIFICATION_REQUESTED": ("A reviewer asked a question. Reply so the review can continue.", "Reply", "detail"),
-    "SHORTLISTED": ("Shortlisted. Share your demo link and explain how to use it in the demo form, then submit it. The innovation office will send it to the judges.", "Open demo form", "detail"),
-    "ON_HOLD": ("On hold. Read the note from the reviewers; it will be looked at again later.", "Read feedback", "detail"),
+    "UNDER_REVIEW": ("Your idea is with the judges. You'll be told when they decide.", None, None),
+    "SHORTLISTED": ("Shortlisted. Fill the demo form (link and how to use it) and submit it. It goes to the judges straight away.", "Open demo form", "detail"),
     "NOT_SELECTED": ("Not selected this time. Your idea stays in the Idea Bank and can be reopened.", "Read feedback", "detail"),
-    "DUPLICATE": ("Linked to an earlier idea. You can join forces with that team.", "See details", "detail"),
-    "PROTOTYPE": ("Improve your demo, then update the demo form (link and how to use it) and submit it again.", "Open idea", "detail"),
-    "DEMO_VALIDATION": ("Your demo is submitted. The innovation office chooses the judges and sends it for review; you'll be told when they decide.", "Open idea", "detail"),
-    "PILOT": ("Your demo is approved and you are eligible for the pilot. Run it, then fill the pilot form and submit it for review.", "Open pilot form", "detail"),
-    "PRODUCTION": ("Live in production. Keep recording results so impact can be verified.", "Add measurement", "impact"),
-    "IMPACT_VERIFIED": ("Impact verified. This idea can now be scaled and published to the catalogue.", None, None),
-    "SCALED": ("Scaled and reusable. Thank you for the impact.", None, None),
+    "PROTOTYPE": ("Your demo is with the judges. You'll be told when they decide.", "Open idea", "detail"),
+    "PILOT": ("Your demo is approved. Run the pilot, then fill the pilot form and submit it for review.", "Open pilot form", "detail"),
+    "PRODUCTION": ("Live. Keep recording results so impact can be verified.", "Add measurement", "impact"),
+    "IMPACT_VERIFIED": ("Impact verified. Thank you for the impact.", None, None),
     "CLOSED": ("This idea is closed.", None, None),
 }
+QUESTION_NEXT = ("A judge asked a question. Reply so the review can continue.", "Reply", "detail")
 
 
 def journey(ini: Initiative) -> list[dict]:
@@ -65,19 +56,26 @@ def journey(ini: Initiative) -> list[dict]:
         if i == cur:
             stage["note"] = NOTES.get(ini.current_state_code)
             stage["date"] = iso(ini.current_stage_entered_at)
-            if ini.current_state_code in ("SCALED", "IMPACT_VERIFIED") or ini.is_awarded:
-                stage["state"] = "won" if ini.is_awarded or ini.current_state_code == "SCALED" else "current"
-        if code == "SUBMITTED" and ini.submitted_at:
+            if ini.current_state_code == "IMPACT_VERIFIED" or ini.is_awarded:
+                stage["state"] = "won"
+        if code == "UNDER_REVIEW" and ini.submitted_at and i < cur:
             stage["date"] = iso(ini.submitted_at)
         out.append(stage)
     return out
 
 
-def next_step(ini: Initiative) -> dict:
-    text, label, target = NEXT.get(ini.current_state_code, ("", None, None))
+def next_step(ini: Initiative, open_question: bool = False) -> dict:
+    text, label, target = QUESTION_NEXT if open_question else NEXT.get(ini.current_state_code, ("", None, None))
     key = ini.code or ini.id
     path = {"edit": f"/ideas/{key}/edit", "detail": f"/ideas/{key}", "impact": "/impact"}.get(target)
     return {"text": text, "action_label": label, "action_path": path}
+
+
+def has_open_question(db: Session, ini: Initiative) -> bool:
+    """Read from the per-request cache, so a list of ideas costs one query, not one per idea."""
+    from app.modules.initiatives.models import ClarificationRequest
+    return any(c.entity_type == "initiative" and c.status == "OPEN"
+               for c in tcache.by(db, ClarificationRequest, "entity_id").get(ini.id, []))
 
 
 def card(db: Session, ini: Initiative, cache: dict | None = None) -> dict:
@@ -91,7 +89,8 @@ def card(db: Session, ini: Initiative, cache: dict | None = None) -> dict:
         "submitted_at": iso(ini.submitted_at), "updated_at": iso(ini.updated_at),
         "data_classification_code": ini.data_classification_code, "is_in_idea_bank": ini.is_in_idea_bank,
         "is_awarded": ini.is_awarded, "score_latest": ini.score_latest,
-        "owner": user_brief(db, ini.owner_user_id, cache), "journey": journey(ini), "next_step": next_step(ini),
+        "owner": user_brief(db, ini.owner_user_id, cache), "journey": journey(ini),
+        "next_step": next_step(ini, ini.current_state_code == "UNDER_REVIEW" and has_open_question(db, ini)),
     }
 
 
@@ -139,8 +138,8 @@ def state_label(db: Session, code: str) -> str:
     return en(s.name_i18n) if s else code.replace("_", " ").title()
 
 
-# Sending a prototype for review, approving it and asking for rework now happen in the prototype review.
-GATED_ACTIONS = ("REQUEST_DEMO", "APPROVE_PILOT", "REQUEST_REWORK")
+# Older action names that are now decided by the demo review (form + judges), never by a button.
+GATED_ACTIONS = ("REQUEST_DEMO", "APPROVE_PILOT", "REQUEST_REWORK", "START_PROTOTYPE")
 
 
 def _pilot_approved(db: Session, ini: Initiative) -> bool:
@@ -166,8 +165,7 @@ def allowed_actions(db: Session, cu: CurrentUser, ini: Initiative, role: str) ->
             continue
         out.append({"action_code": t.action_code, "label": en(t.label_i18n), "to_state": t.to_state,
                     "requires_comment": t.requires_comment,
-                    "tone": "danger" if t.to_state in ("NOT_SELECTED", "CLOSED", "DUPLICATE") else
-                            "secondary" if t.to_state in ("ON_HOLD", "PROTOTYPE") and t.requires_comment else "primary"})
+                    "tone": "danger" if t.to_state in ("NOT_SELECTED", "CLOSED") else "primary"})
     return out
 
 
@@ -213,7 +211,7 @@ def transition(db: Session, cu: CurrentUser, ini: Initiative, role: str, action:
     _check_guards(db, ini, t.guard_rules or {})
 
     before, now = ini.current_state_code, utcnow()
-    if t.to_state == "DUPLICATE":
+    if action == "MARK_DUPLICATE":
         original = db.get(Initiative, duplicate_of) or db.scalar(select(Initiative).where(Initiative.code == duplicate_of))
         if not original or original.id == ini.id:
             raise DomainError("DUPLICATE_TARGET_REQUIRED", "Choose the earlier idea this one duplicates.")
@@ -226,23 +224,46 @@ def transition(db: Session, cu: CurrentUser, ini: Initiative, role: str, action:
         ini.implemented_on = now
     record_history(db, "initiative", ini.id, before, t.to_state, action, cu.id, comment)
 
-    if t.to_state in ("SHORTLISTED", "NOT_SELECTED", "ON_HOLD", "DUPLICATE"):
+    if action == "REOPEN":
+        ini.duplicate_of_id = None
+    if t.to_state in ("SHORTLISTED", "NOT_SELECTED"):
         db.add(Feedback(entity_type="initiative", entity_id=ini.id, decision_code=t.to_state, decision_reason=comment,
                         strengths="", improvements="", written_by=cu.id, published_at=now, score_shared=ini.score_latest,
                         next_steps=NEXT.get(t.to_state, ("",))[0]))
     people = list(db.scalars(select(InitiativeMember.user_id).where(InitiativeMember.initiative_id == ini.id)).all())
     people = list(dict.fromkeys([ini.owner_user_id, *people]))
-    if t.to_state in ("SHORTLISTED", "PILOT", "IMPACT_VERIFIED", "SCALED"):
+    if action == "REOPEN":
+        assign_default_judges(db, ini, cu.id)
+    if t.to_state in ("SHORTLISTED", "PILOT", "IMPACT_VERIFIED"):
         from app.modules.evaluation.service import award_points
         points, badge = {"SHORTLISTED": (50, "SHORTLISTED"), "PILOT": (80, "PILOT_STARTED"),
-                         "IMPACT_VERIFIED": (150, "IMPACT_VERIFIED"), "SCALED": (200, "REUSABLE_ASSET")}[t.to_state]
+                         "IMPACT_VERIFIED": (150, "IMPACT_VERIFIED")}[t.to_state]
         award_points(db, people, points, t.to_state, badge, "initiative", ini.id)
     label = state_label(db, t.to_state)
     publish_event(db, t.emits_event or "INITIATIVE_STATE_CHANGED", "initiative", ini.id, cu.id, users=people,
                   title=f"{ini.code}: now {label}", body=comment or NEXT.get(t.to_state, ("",))[0],
-                  link=f"/ideas/{ini.code or ini.id}", needs_action=t.to_state in ("PROTOTYPE", "PILOT"),
+                  link=f"/ideas/{ini.code or ini.id}", needs_action=t.to_state in ("SHORTLISTED", "PILOT"),
                   vars={"innovation_id": ini.code, "title": ini.title, "old_status": state_label(db, before),
                         "new_status": label, "comment": comment or ""})
+
+
+def assign_default_judges(db: Session, ini: Initiative, actor_id: str | None) -> list[str]:
+    """Gives the idea to the default idea judges (Judges → Ideas). Returns who got it; empty if no judge is set up."""
+    from app.modules.evaluation import judging
+    from app.modules.evaluation.models import PanelMember, ReviewRound
+    rnd = db.scalar(select(ReviewRound).where(ReviewRound.round_type == "IDEA_REVIEW", ReviewRound.challenge_id.is_(None)))
+    if not rnd or not rnd.panel_id:
+        return []
+    judges = list(db.scalars(select(PanelMember.user_id).where(PanelMember.panel_id == rnd.panel_id)).all())
+    if not judges:
+        return []
+    days = int(_setting(db, "review_sla_days", 10) or 10)
+    return judging.add_idea_judges(db, ini, judges, days, actor_id)["added"]
+
+
+def _setting(db: Session, key: str, default):
+    from app.shared.util import setting
+    return setting(db, key, default)
 
 
 def initiative_as_form(db: Session, ini: Initiative) -> tuple[dict, dict]:

@@ -28,11 +28,27 @@ def run_once() -> None:
         db.close()
 
 
+def _projects_daily() -> None:
+    """Daily Project Rewards import and sync (ProjectFlow + Process Brain). It takes up to a minute, so it runs in
+    its own thread and the outbox keeps sending meanwhile; the import lock stops two runs overlapping."""
+    from app.modules.projects.router import run_daily_if_due   # late import: the router pulls in the web stack
+    db = SessionLocal()
+    try:
+        run_daily_if_due(db)
+    except Exception:
+        db.rollback()
+        log.exception("daily project import failed")
+    finally:
+        db.close()
+
+
 def _loop() -> None:
     tick = 0
     while not _stop.is_set():
         tick += 1
         run_once()
+        if tick % 12 == 1:   # first tick, then roughly every minute: is the daily project import due?
+            threading.Thread(target=_projects_daily, name="innovatex-projects-daily", daemon=True).start()
         if tick % 12 == 0:   # roughly every minute with the default 5 s poll
             db = SessionLocal()
             try:

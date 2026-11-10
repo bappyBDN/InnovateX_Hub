@@ -204,6 +204,8 @@ def process_outbox(db: Session, limit: int = 50) -> int:
                                          event_type=ob.event_type, needs_action=bool(p.get("needs_action"))))
                 if user.email:
                     targets[user.email] = uid
+            for address in p.get("recipient_emails") or []:      # people without an account here (e.g. ProjectFlow staff)
+                targets.setdefault(address, None)
             for uid, address in _rule_addresses(db, ob.event_type):
                 targets.setdefault(address, uid)
 

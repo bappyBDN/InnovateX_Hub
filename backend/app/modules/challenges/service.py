@@ -36,6 +36,19 @@ PHASE_NAMES = {
 }
 FROZEN_STATUSES = {"DRAFT", "CANCELLED", "ON_HOLD", "RESULTS_PUBLISHED", "CLOSED"}
 CLOSED_STATUSES = {"RESULTS_PUBLISHED", "CLOSED", "CANCELLED"}
+# The five things a person needs to know about a challenge. The detailed status (the phase) stays underneath, because
+# the timeline moves it, and is shown after the family name ("Open · methodology").
+STATUS_GROUPS = {
+    "DRAFT": {"DRAFT"},
+    "OPEN": {"SCHEDULED", "OPEN_FOR_REGISTRATION", "METHODOLOGY_OPEN", "BUILD", "FINAL_SUBMISSION"},
+    "IN_REVIEW": {"METHODOLOGY_REVIEW", "SHORTLISTING", "PROTOTYPE_REVIEW", "DEMO_AND_JUDGING", "RESULTS_PENDING_APPROVAL"},
+    "RESULTS_PUBLISHED": {"RESULTS_PUBLISHED"},
+    "CLOSED": {"CLOSED", "CANCELLED", "ON_HOLD"},
+}
+
+
+def status_group(code: str | None) -> str:
+    return next((g for g, codes in STATUS_GROUPS.items() if code in codes), "OPEN")
 ACTIVE_ENTRY_EXCLUDES = {"WITHDRAWN"}
 SUBMISSION_PHASE = {"METHODOLOGY": "METHODOLOGY", "PROTOTYPE": "PROTOTYPE", "FINAL_PROJECT": "FINAL_SUBMISSION"}
 
@@ -229,22 +242,26 @@ def sync_challenge(db: Session, ch: Challenge, now: datetime | None = None) -> N
         return
     by_type = {p.phase_type: p for p in phases}
 
+    # The tables below are read once per request (shared cache) and reused for every challenge on the page.
     registration = by_type.get("REGISTRATION")
     if registration and registration.status == "CLOSED":
-        for team in db.scalars(select(Team).where(Team.challenge_id == ch.id, Team.is_locked.is_(False))).all():
-            team.is_locked, team.locked_at = True, now
-        for link in db.scalars(select(TeamInviteLink).join(Team, Team.id == TeamInviteLink.team_id)
-                               .where(Team.challenge_id == ch.id, TeamInviteLink.status == "ACTIVE")).all():
-            link.status = "EXPIRED"
+        teams = cache.by(db, Team, "challenge_id").get(ch.id, [])
+        for team in teams:
+            if not team.is_locked:
+                team.is_locked, team.locked_at = True, now
+        links = cache.by(db, TeamInviteLink, "team_id")
+        for team in teams:
+            for link in links.get(team.id, []):
+                if link.status == "ACTIVE":
+                    link.status = "EXPIRED"
 
     methodology = by_type.get("METHODOLOGY")
     if methodology and methodology.status == "CLOSED" and methodology.auto_lock_on_close:
-        for sub in db.scalars(select(EntrySubmission).where(EntrySubmission.challenge_phase_id == methodology.id,
-                                                            EntrySubmission.status == "SUBMITTED")).all():
-            sub.status, sub.locked_at = "LOCKED", now
-        for entry in db.scalars(select(ChallengeEntry).where(
-                ChallengeEntry.challenge_id == ch.id,
-                ChallengeEntry.status_code.in_(["REGISTERED", "METHODOLOGY_SUBMITTED"]))).all():
+        for sub in cache.by(db, EntrySubmission, "challenge_phase_id").get(methodology.id, []):
+            if sub.status == "SUBMITTED":
+                sub.status, sub.locked_at = "LOCKED", now
+        for entry in [e for e in cache.by(db, ChallengeEntry, "challenge_id").get(ch.id, [])
+                      if e.status_code in ("REGISTERED", "METHODOLOGY_SUBMITTED")]:
             new = "UNDER_REVIEW" if entry.status_code == "METHODOLOGY_SUBMITTED" else "NO_SUBMISSION"
             record_history(db, "challenge_entry", entry.id, entry.status_code, new, "DEADLINE_LOCK", None)
             entry.status_code = new

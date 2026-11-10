@@ -34,19 +34,19 @@ interface IdeaCard {
 
 const CHIPS: Record<string, string[] | null> = {
   all: null,
-  triage: ['SUBMITTED', 'TRIAGE'],
-  review: ['UNDER_REVIEW', 'CLARIFICATION_REQUESTED', 'ON_HOLD'],
+  review: ['UNDER_REVIEW'],
   shortlisted: ['SHORTLISTED'],
-  delivery: ['PROTOTYPE', 'DEMO_VALIDATION', 'PILOT', 'PRODUCTION', 'IMPACT_VERIFIED', 'SCALED'],
+  delivery: ['PROTOTYPE', 'PILOT', 'PRODUCTION', 'IMPACT_VERIFIED'],
   bank: ['NOT_SELECTED'],
+  closed: ['CLOSED'],
 };
 const CHIP_LABEL: Record<string, string> = {
   all: 'portfolio.chipAll',
-  triage: 'portfolio.chipTriage',
   review: 'portfolio.chipReview',
   shortlisted: 'portfolio.chipShortlisted',
   delivery: 'portfolio.chipDelivery',
   bank: 'portfolio.chipBank',
+  closed: 'portfolio.chipClosed',
 };
 
 function daysIn(v: string | null): number | null {

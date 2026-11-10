@@ -55,8 +55,19 @@ def drop(db: Session) -> None:
 
 @event.listens_for(Session, "after_flush")
 def _invalidate(session, _flush_context):
-    if session.new or session.deleted:
-        drop(session)
+    """Forget only the tables that gained or lost rows; the others stay cached. (In after_flush the session still
+    lists the objects it has just inserted or deleted.)"""
+    changed = {type(o) for o in (*session.new, *session.deleted)}
+    if not changed:
+        return
+    tables = session.info.get("tables")
+    if tables:
+        for model in changed:
+            tables.pop(model, None)
+    indexes = session.info.get("indexes")
+    if indexes:
+        for key in [k for k in indexes if k[0] in changed]:
+            indexes.pop(key, None)
 
 
 # ---- process-wide cache for rarely-changing reference data ---------------------------------------

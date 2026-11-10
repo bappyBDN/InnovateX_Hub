@@ -10,6 +10,7 @@ import { statusLabel } from '@/utils/format';
 import { ChallengeFeedbackTab } from './ChallengeFeedbackTab';
 import { ChallengeJudgesTab } from './ChallengeJudgesTab';
 import { JudgeFeedbackPanel } from './JudgeFeedbackPanel';
+import { DefaultIdeaJudgesCard } from './DefaultIdeaJudges';
 import { IdeaJudgesPanel } from './IdeaJudgesDialog';
 
 interface ChallengeRow {
@@ -24,8 +25,8 @@ interface IdeaRow {
   title: string;
   current_state_code: string;
 }
-/** Ideas that are waiting for, or in, judging. */
-const JUDGEABLE = ['SUBMITTED', 'TRIAGE', 'UNDER_REVIEW', 'CLARIFICATION_REQUESTED'];
+/** Ideas that are in judging. */
+const JUDGEABLE = ['UNDER_REVIEW'];
 
 /** Admin page: choose judges for a challenge or for an idea. Everything is picked from dropdown lists. */
 export default function JudgesAdminPage() {
@@ -166,6 +167,8 @@ export default function JudgesAdminPage() {
 
       {tab === 'ideas' && (
         <div role="tabpanel" aria-label={t('judging.tabIdeas')} className="space-y-4">
+          <DefaultIdeaJudgesCard />
+          <h2 className="pt-2 text-base font-semibold text-ink">{t('judging.oneIdeaTitle')}</h2>
           {ideas.isError ? (
             <ErrorState error={ideas.error} onRetry={() => void ideas.refetch()} />
           ) : (

@@ -59,6 +59,17 @@ export const queryKeys = {
   },
   results: ['results'] as const,
   catalogue: (p?: P) => ['catalogue', p ?? {}] as const,
+  projectRewards: {
+    all: ['project-rewards'] as const,
+    list: ['project-rewards', 'list'] as const,
+    meta: ['project-rewards', 'meta'] as const,
+  },
+  registry: {
+    all: ['registry'] as const,
+    list: (p?: P) => ['registry', 'list', p ?? {}] as const,
+    stats: ['registry', 'stats'] as const,
+    detail: (code: string) => ['registry', 'detail', code] as const,
+  },
   impact: ['impact'] as const,
   dashboards: (type: string, p?: P) => ['dashboards', type, p ?? {}] as const,
   comments: (entityType: string, entityId: string) => ['comments', entityType, entityId] as const,

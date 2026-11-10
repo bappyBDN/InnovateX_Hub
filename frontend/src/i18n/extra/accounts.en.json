@@ -1,7 +1,7 @@
 {
   "signup": {
     "title": "Create your account",
-    "subtitle": "Sign up as an employee to join challenges and share ideas.",
+    "subtitle": "Create your account to join challenges and share ideas.",
     "invitedTitle": "You're invited",
     "invitedBody": "{{inviter}} invited you to join as {{roles}}. Create your account to accept.",
     "invitedBodyNoName": "You were invited to join as {{roles}}. Create your account to accept.",
@@ -24,7 +24,7 @@
     "departmentNeedsSbu": "Choose your SBU first",
     "departmentNone": "No departments listed for this SBU",
     "employeeNo": "Employee number",
-    "employeeNoRequired": "Enter your employee number.",
+    "employeeNoRequired": "Enter your employee ID.",
     "optional": "Optional",
     "submit": "Create account",
     "creating": "Creating your account…",
@@ -33,7 +33,32 @@
     "signIn": "Sign in",
     "noAccount": "New here?",
     "createAccount": "Create an account",
-    "roleNote": "New accounts start as Employee. Judges are chosen by the admin for a challenge or an idea. Other roles are given by the Super Admin."
+    "roleNote": "New accounts start as Employee. Judges are chosen by the Super Admin, DMD or a Program Owner for a challenge or an idea. Other roles are given by the Super Admin.",
+    "heading": "Sign Up",
+    "employeeId": "Employee ID",
+    "name": "Name",
+    "designation": "Designation",
+    "function": "Function",
+    "reportsTo": "Reports To (manager)",
+    "searchSbu": "Search SBU…",
+    "searchFunction": "Search or type a new function…",
+    "searchDepartment": "Search or type a new department…",
+    "searchManager": "Search manager by name…",
+    "reportsToHelp": "Manager not in the list? Choose \"+ Add new user\" and enter their email.",
+    "addNewUser": "Add new user",
+    "managerEmail": "Manager's email",
+    "managerEmailHelp": "They are linked as your manager when they sign up.",
+    "useNew": "Use \"{{value}}\"",
+    "typeNew": "Type to add a new one",
+    "chooseSbuFirst": "Choose your SBU first, or type a new one",
+    "noMatch": "No match",
+    "typeTwo": "Type at least 2 letters",
+    "noManager": "No one found",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "nameRequired": "Enter your full name.",
+    "emailRequired": "Enter your email address.",
+    "login": "Login"
   },
   "adminPanel": {
     "navHome": "Admin panel",
@@ -99,7 +124,12 @@
       "revoked": "Invitation revoked",
       "empty": "No invitations yet",
       "emptyBody": "Invite a judge or another privileged user to get started.",
-      "statuses": { "PENDING": "Waiting", "ACCEPTED": "Accepted", "REVOKED": "Revoked", "EXPIRED": "Expired" }
+      "statuses": {
+        "PENDING": "Waiting",
+        "ACCEPTED": "Accepted",
+        "REVOKED": "Revoked",
+        "EXPIRED": "Expired"
+      }
     },
     "priv": {
       "title": "Roles and privileges",

@@ -55,12 +55,12 @@ export function CardHeader({
   className?: string;
 }) {
   return (
-    <div className={cn('mb-4 flex flex-wrap items-start justify-between gap-3', className)}>
-      <div>
-        <h2 className="text-xl font-semibold text-ink">{title}</h2>
-        {subtitle && <p className="mt-0.5 text-sm text-ink-muted">{subtitle}</p>}
+    <div className={cn('mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-3', className)}>
+      <div className="min-w-0 flex-1">
+        <h2 className="text-lg font-semibold leading-snug text-ink">{title}</h2>
+        {subtitle && <p className="mt-1 max-w-prose text-sm leading-relaxed text-ink-muted">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
@@ -104,15 +104,15 @@ export function PageHeader({ title, subtitle, actions, breadcrumbs, meta, classN
           </ol>
         </nav>
       )}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold text-ink">{title}</h1>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <h1 className="text-2xl font-semibold leading-tight tracking-tight text-ink">{title}</h1>
             {meta}
           </div>
-          {subtitle && <p className="mt-1 text-ink-muted">{subtitle}</p>}
+          {subtitle && <p className="mt-1.5 max-w-3xl leading-relaxed text-ink-muted">{subtitle}</p>}
         </div>
-        {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">{actions}</div>}
+        {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">{actions}</div>}
       </div>
     </header>
   );

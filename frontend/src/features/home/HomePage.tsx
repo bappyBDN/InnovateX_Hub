@@ -7,6 +7,7 @@ import { queryKeys } from '@/api/queryKeys';
 import { DeadlineCountdown, JourneyRail, StatusBadge, type JourneyStage } from '@/components/domain';
 import { ButtonLink, Card, CardHeader, EmptyState, ErrorState, PageHeader, PageSkeleton, Stat } from '@/components/ui';
 import { ChallengeCard } from '@/features/challenges/ChallengeCard';
+import { ActionGroups, ActionSummary, type ActionGroup } from './ActionGroups';
 import type { ChallengeCardData, EntryCardData } from '@/features/challenges/types';
 import { cn } from '@/utils/cn';
 import { formatDateTime, serverNow } from '@/utils/dates';
@@ -33,6 +34,8 @@ interface IdeaCard {
 interface HomeData {
   first_name: string;
   needs_you: NeedsItem[];
+  /** Innovation office only: every item of work, grouped by kind. */
+  action_groups?: ActionGroup[];
   my_entries: EntryCardData[];
   open_challenges: ChallengeCardData[];
   open_challenges_total: number;
@@ -92,6 +95,8 @@ export default function HomePage() {
   const hour = Number(
     new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: import.meta.env.VITE_DISPLAY_TIMEZONE || 'Asia/Dhaka' }).format(serverNow()),
   );
+  const groups = d.action_groups ?? [];
+  const todo = groups.reduce((n, g) => n + g.total, 0) + d.needs_you.length;
   const greeting = hour < 12 ? t('home.goodMorning', { name: d.first_name }) : hour < 17 ? t('home.goodAfternoon', { name: d.first_name }) : t('home.goodEvening', { name: d.first_name });
 
   return (
@@ -115,33 +120,40 @@ export default function HomePage() {
       )}
 
       {!d.is_new_user && (
-        <Section title={t('home.needsYou')}>
-          {d.needs_you.length === 0 ? (
+        <Section title={t('home.needsYou')} action={todo > 0 ? <span className="tabular text-sm text-ink-muted">{t('home.actions.totalOpen', { count: todo })}</span> : undefined}>
+          {d.needs_you.length === 0 && groups.length === 0 ? (
             <Card className="flex items-center gap-3 text-ink-muted">
               <CheckCircle2 className="h-5 w-5 text-success" aria-hidden />
               {t('home.nothingNeeded')}
             </Card>
           ) : (
-            <Card padded={false}>
-              <ul className="divide-y divide-line">
-                {d.needs_you.map((n, i) => (
-                  <li key={i} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                    <div className="flex min-w-0 flex-1 items-start gap-3">
-                      <span className="mt-0.5 shrink-0">{toneIcon[n.tone] ?? toneIcon.info}</span>
-                      <div className="min-w-0">
-                        <p className="text-ink">{n.text}</p>
-                        {n.due_at && <DeadlineCountdown closesAt={n.due_at} className="mt-0.5" />}
-                      </div>
-                    </div>
-                    {n.link && n.action_label && (
-                      <ButtonLink to={n.link} size="sm" variant={i === 0 ? 'primary' : 'secondary'}>
-                        {n.action_label}
-                      </ButtonLink>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </Card>
+            <div className="space-y-4">
+              {groups.length > 0 && <ActionSummary groups={groups} />}
+              {d.needs_you.length > 0 && (
+                <Card padded={false}>
+                  {groups.length > 0 && <h3 className="border-b border-line px-4 py-3 text-base font-semibold text-ink sm:px-5">{t('home.actions.forYou')}</h3>}
+                  <ul className="divide-y divide-line">
+                    {d.needs_you.map((n, i) => (
+                      <li key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3 sm:px-5">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span className="mt-0.5 shrink-0">{toneIcon[n.tone] ?? toneIcon.info}</span>
+                          <div className="min-w-0">
+                            <p className="text-ink">{n.text}</p>
+                            {n.due_at && <DeadlineCountdown closesAt={n.due_at} className="mt-0.5" />}
+                          </div>
+                        </div>
+                        {n.link && n.action_label && (
+                          <ButtonLink to={n.link} size="sm" variant={i === 0 && groups.length === 0 ? 'primary' : 'secondary'} className="justify-center md:w-44">
+                            {n.action_label}
+                          </ButtonLink>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
+              {groups.length > 0 && <ActionGroups groups={groups} />}
+            </div>
           )}
         </Section>
       )}
@@ -162,10 +174,7 @@ export default function HomePage() {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <Stat label={t('home.registrationsToday')} value={d.program.registrations_today} to="/manage/challenges" />
             <Stat label={t('home.submissionsToday')} value={d.program.submissions_today} to="/manage/challenges" />
-            <Stat label={t('home.reviewsOverdue')} value={d.program.reviews_overdue} to="/manage/challenges" hint={t('home.ofOpenReviews', { count: d.program.reviews_open })} />
-            <Stat label={t('home.shortlistsWaiting')} value={d.program.shortlists_waiting} to="/manage/challenges" />
-            <Stat label={t('home.resultsWaiting')} value={d.program.results_waiting} to="/manage/challenges" />
-            <Stat label={t('home.ideasToTriage')} value={d.program.ideas_to_triage} to="/manage/ideas" />
+            <Stat label={t('home.actions.openReviews')} value={d.program.reviews_open} to="/manage/challenges" hint={d.program.reviews_overdue ? t('home.actions.overdueHint', { count: d.program.reviews_overdue }) : undefined} />
           </div>
           <Card>
             <h3 className="mb-2 text-sm font-medium text-ink-muted">{t('home.challengesByPhase')}</h3>

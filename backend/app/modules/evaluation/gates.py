@@ -1,9 +1,9 @@
 """Demo (prototype) review and pilot review.
 
-Once an idea or an entry is shortlisted, the candidate gets a short form: the demo link and how to use it. They submit it.
-The Super Admin or DMD then chooses the judges and sends it for review (until then it waits as SUBMITTED). Each judge
-approves it, sends it back for changes, or rejects it — a decision with written feedback, no score. Most judges decide;
-the admin can always make the final call. An approved demo makes the candidate eligible for the pilot, which opens a
+Once an idea or an entry is shortlisted, the candidate gets a short form: the demo link and how to use it. They submit it
+and it goes straight to the judges: the idea's judges, or the challenge judges who cover the prototype stage. Only when
+no judge is set up does it wait (SUBMITTED) for an admin to choose them. Each judge approves it, sends it back for
+changes, or rejects it, with written feedback. Most judges decide; an admin can always make the final call. An approved demo makes the candidate eligible for the pilot, which opens a
 second form (the pilot report) that is reviewed the same way.
 
 Works for an idea (demo and pilot) and for a challenge entry (demo and pilot).
@@ -99,7 +99,7 @@ class Subject:
         if self.entity_type == "initiative":
             state = self.obj.current_state_code
             if stage == "PROTOTYPE":
-                return None if state in ("SHORTLISTED", "PROTOTYPE", "DEMO_VALIDATION") else "Opens when your idea is shortlisted."
+                return None if state in ("SHORTLISTED", "PROTOTYPE") else "Opens when your idea is shortlisted."
             return None if state == "PILOT" else "Opens when your demo is approved and the idea is eligible for the pilot."
         entry, ch = self.obj, self.challenge
         if stage == "PILOT":
@@ -125,8 +125,8 @@ class Subject:
             return self.challenge.prototype_policy != "NONE" \
                 and self.obj.status_code not in ("REGISTERED", "METHODOLOGY_SUBMITTED", "UNDER_REVIEW", "WITHDRAWN", "NO_SUBMISSION")
         state = self.obj.current_state_code
-        after_prototype = ("SHORTLISTED", "PROTOTYPE", "DEMO_VALIDATION", "PILOT", "PRODUCTION", "IMPACT_VERIFIED", "SCALED")
-        return state in after_prototype if stage == "PROTOTYPE" else state in after_prototype[3:]
+        after_prototype = ("SHORTLISTED", "PROTOTYPE", "PILOT", "PRODUCTION", "IMPACT_VERIFIED")
+        return state in after_prototype if stage == "PROTOTYPE" else state in after_prototype[2:]
 
     def set_state(self, new: str, action: str, actor_id: str | None, comment: str | None = None) -> None:
         now = utcnow()
@@ -171,6 +171,9 @@ def votes_of(db: Session, gate: StageGate) -> list[StageGateVote]:
     return list(db.scalars(select(StageGateVote).where(StageGateVote.gate_id == gate.id).order_by(StageGateVote.created_at)).all())
 
 
+MANAGERS = ("SUPER_ADMIN", "DMD", "PROGRAM_OWNER")     # choose judges and make the final call
+
+
 def admin_ids(db: Session) -> list[str]:
     roles = select(Role.id).where(Role.code.in_(["SUPER_ADMIN", "DMD"]))
     return list(dict.fromkeys(db.scalars(select(UserRoleAssignment.user_id).where(UserRoleAssignment.role_id.in_(roles))).all()))
@@ -197,7 +200,7 @@ def gate_view(db: Session, gate: StageGate, staff: bool) -> dict:
 
 def overview(db: Session, cu: CurrentUser, subject: Subject) -> dict:
     member = subject.is_member(cu.id)
-    admin = cu.has_role("SUPER_ADMIN")
+    admin = cu.has_role(*MANAGERS)
     staff = admin or cu.privileged or cu.has_role("EXECUTIVE")
     out = []
     for stage in subject.stages():
@@ -258,14 +261,19 @@ def save(db: Session, cu: CurrentUser, subject: Subject, stage: str, content: di
             errors[key] = "Enter a full link starting with http:// or https://."
     if errors:
         raise DomainError("VALIDATION_ERROR", "Some fields need attention.", 422, {"fields": errors})
-    # Submitted: it now waits for the Super Admin / DMD to choose the judges and send it for review.
     gate.status, gate.submitted_by, gate.submitted_at = "SUBMITTED", cu.id, utcnow()
     db.flush()
     if subject.entity_type == "initiative" and stage == "PROTOTYPE":
-        subject.set_state("DEMO_VALIDATION", "PROTOTYPE_SENT_FOR_REVIEW", cu.id)
+        subject.set_state("PROTOTYPE", "PROTOTYPE_SENT_FOR_REVIEW", cu.id)
     elif subject.entity_type == "challenge_entry" and stage == "PROTOTYPE":
         subject.set_state("PROTOTYPE_SUBMITTED", "PROTOTYPE_SENT_FOR_REVIEW", cu.id)
     name = STAGE_TITLE[stage]
+    # The judges are already known (the same ones as before, or the challenge's prototype judges): send it on now.
+    judges = [u for u in default_judges(db, subject, stage) if u not in subject.people()]
+    if judges:
+        send_for_review(db, cu, gate, subject, judges)
+        if gate.status == "IN_REVIEW":
+            return gate
     publish_event(db, "GATE_SUBMITTED", subject.entity_type, subject.id, cu.id, users=admin_ids(db),
                   title=f"{name} submitted: {subject.code}",
                   body=f"{subject.title}. Choose the judges and send it for review.", link=subject.link, needs_action=True)
@@ -430,8 +438,8 @@ def apply(db: Session, gate: StageGate, subject: Subject, result: str, actor_id:
             svc.award_points(db, people, 80, "PILOT", "PILOT_STARTED", "initiative", subject.id)
             next_step = "Your demo is approved and your idea is eligible for the pilot. Open the pilot form, report what the pilot showed and send it for review."
         elif result == "CHANGES_REQUESTED":
-            subject.set_state("PROTOTYPE", action, actor_id, note)
-            next_step = "Read the feedback, improve the prototype and send it again."
+            subject.set_state("SHORTLISTED", action, actor_id, note)
+            next_step = "Read the feedback, improve the demo and send it again."
         else:
             subject.set_state("NOT_SELECTED", action, actor_id, note)
             next_step = "Thank you for building it. The idea stays on record in the Idea Bank."

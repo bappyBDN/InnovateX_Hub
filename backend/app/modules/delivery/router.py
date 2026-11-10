@@ -20,6 +20,7 @@ from app.modules.evaluation.gates import latest as latest_gate
 from app.modules.evaluation.models import Feedback, ReviewRound, RoundResult
 from app.modules.identity.models import User
 from app.modules.initiatives.models import Initiative, InitiativeMember
+from app.shared import cache
 from app.shared.access import check_entity_access, initiative_role
 from app.shared.models.base import iso, row, utcnow
 from app.shared.util import en, user_brief
@@ -403,13 +404,14 @@ class KpiIn(BaseModel):
 
 def _assigned_id(db: Session, measurement_id: str) -> str | None:
     """Who the admin chose to verify this measurement (the latest choice), or None."""
-    a = db.scalar(select(KpiVerifierAssignment).where(KpiVerifierAssignment.measurement_id == measurement_id)
-                  .order_by(KpiVerifierAssignment.created_at.desc()))
+    found = cache.by(db, KpiVerifierAssignment, "measurement_id").get(measurement_id, [])
+    a = max(found, key=lambda x: x.created_at, default=None)
     return a.verifier_user_id if a else None
 
 
 def _kpi(db: Session, k: Kpi) -> dict:
-    ms = db.scalars(select(KpiMeasurement).where(KpiMeasurement.kpi_id == k.id).order_by(KpiMeasurement.period_end)).all()
+    ms = sorted(cache.by(db, KpiMeasurement, "kpi_id").get(k.id, []),
+                key=lambda m: (m.period_end is None, m.period_end))       # same order as ORDER BY period_end (nulls last)
     latest = ms[-1] if ms else None
     verified = [m for m in ms if m.verification_status in ("VERIFIED", "ADJUSTED")]
     return {**row(k, exclude=("created_by", "updated_by")),
@@ -579,7 +581,7 @@ def impact_overview(cu: CurrentUser = Depends(get_current_user), db: Session = D
     member_of = set(db.scalars(select(InitiativeMember.initiative_id).where(InitiativeMember.user_id == cu.id)).all())
     for ini in db.scalars(select(Initiative).where(Initiative.deleted_at.is_(None),
                                                    Initiative.current_state_code.in_(
-                                                       ["PROTOTYPE", "DEMO_VALIDATION", "PILOT", "PRODUCTION", "IMPACT_VERIFIED", "SCALED"]))
+                                                       ["PROTOTYPE", "PILOT", "PRODUCTION", "IMPACT_VERIFIED"]))
                           .order_by(Initiative.updated_at.desc())).all():
         own = ini.owner_user_id == cu.id or ini.id in member_of
         if not own and not initiative_role(db, cu, ini):
@@ -774,10 +776,12 @@ def results_action(challenge_id: str, action: str, request: Request, cu: Current
         return {"status": "APPROVED"}
     if action != "publish":
         raise not_found("Action")
-    if not ch.results_approved_at:
-        raise DomainError("RESULTS_NOT_APPROVED", "Results must be approved before they are published.", 409)
     if ch.results_published_at:
         raise DomainError("RESULTS_PUBLISHED", "Results are already published.", 409)
+    if not ch.results_approved_at:      # one step: publishing is the approval, recorded with the same person and time
+        ch.results_approved_by, ch.results_approved_at = cu.id, now
+        for d in decisions:
+            d.publication_status, d.approved_by, d.approved_at = "APPROVED", cu.id, now
     prizes = db.scalars(select(ChallengePrize).where(ChallengePrize.challenge_id == ch.id)).all()
     decided = {d.entity_id: d for d in decisions}
     rnd = _final_round(db, ch.id)
@@ -887,13 +891,14 @@ def convert_to_initiative(entry_id: str, request: Request, cu: CurrentUser = Dep
 def published_results(cu: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     """Published results only: winners' title, team name, short summary and prize. Non-winning entries are never listed."""
     categories = {a.id: en(a.name_i18n) for a in db.scalars(select(AwardCategory)).all()}
+    cache.preload(db, ChallengeEntry, Team)       # db.get below is then answered from memory
     challenges = []
     for ch in db.scalars(select(Challenge).where(Challenge.results_published_at.is_not(None))
                          .order_by(Challenge.results_published_at.desc())).all():
-        prizes = db.scalars(select(ChallengePrize).where(ChallengePrize.challenge_id == ch.id)).all()
+        prizes = cache.by(db, ChallengePrize, "challenge_id").get(ch.id, [])
         winners = []
-        for d in db.scalars(select(AwardDecision).where(AwardDecision.challenge_id == ch.id,
-                                                        AwardDecision.publication_status == "PUBLISHED").order_by(AwardDecision.rank)).all():
+        for d in sorted([x for x in cache.by(db, AwardDecision, "challenge_id").get(ch.id, []) if x.publication_status == "PUBLISHED"],
+                        key=lambda x: x.rank or 0):
             entry = db.get(ChallengeEntry, d.entity_id)
             team = db.get(Team, entry.team_id) if entry.team_id else None
             prize = next((p for p in prizes if p.rank_from <= d.rank <= p.rank_to), None)
@@ -910,9 +915,10 @@ def published_results(cu: CurrentUser = Depends(get_current_user), db: Session =
     hall = []
     for ini in db.scalars(select(Initiative).where(Initiative.deleted_at.is_(None),
                                                    Initiative.data_classification_code.in_(["PUBLIC", "INTERNAL"]),
-                                                   Initiative.current_state_code.in_(["PRODUCTION", "IMPACT_VERIFIED", "SCALED"]))
+                                                   Initiative.current_state_code.in_(["PRODUCTION", "IMPACT_VERIFIED"]))
                           .order_by(Initiative.implemented_on.desc())).all():
-        primary = db.scalar(select(Kpi).where(Kpi.entity_type == "initiative", Kpi.entity_id == ini.id).order_by(Kpi.is_primary.desc()))
+        kpis = [x for x in cache.by(db, Kpi, "entity_id").get(ini.id, []) if x.entity_type == "initiative"]
+        primary = max(kpis, key=lambda x: bool(x.is_primary), default=None)
         k = _kpi(db, primary) if primary else None
         hall.append({"code": ini.code, "title": ini.title, "summary": ini.summary, "is_awarded": ini.is_awarded,
                      "current_state_code": ini.current_state_code, "owner": (user_brief(db, ini.owner_user_id) or {}).get("full_name"),

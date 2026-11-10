@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Building2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Building2, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/api/client';
@@ -45,6 +45,16 @@ const CHILD_TYPE: Record<string, string> = {
   TEAM: 'PROJECT',
 };
 
+interface SyncReport {
+  sbus_linked: string[];
+  sbus_created: string[];
+  sbus_switched_off: string[];
+  sbus_kept: string[];
+  fixed_types: string[];
+  departments_created: number;
+  functions_created: number;
+}
+
 type Editing = { mode: 'add'; parent: Unit | null } | { mode: 'edit'; unit: Unit };
 
 export default function OrgPage() {
@@ -57,6 +67,16 @@ export default function OrgPage() {
     onDone: () => setDeleting(null),
   });
   const units = useQuery({ queryKey: queryKeys.masterdata.orgUnits, queryFn: () => api.get<Unit[]>('/org-units') });
+  const [report, setReport] = useState<SyncReport | null>(null);
+  const [confirmSync, setConfirmSync] = useState(false);
+  const sync = useAdminMutation(() => api.post<SyncReport>('/org-units/sync-projectflow'), {
+    success: t('admin.org.sync.done'),
+    invalidate: [queryKeys.masterdata.orgUnits],
+    onDone: (r) => {
+      setConfirmSync(false);
+      setReport(r);
+    },
+  });
 
   // The API returns units ordered by path, so depth = number of dots in the path.
   const rows = useMemo(() => (units.data ?? []).map((u) => ({ u, depth: u.path.split('.').length - 1 })), [units.data]);
@@ -67,11 +87,45 @@ export default function OrgPage() {
         title={t('admin.org.title')}
         subtitle={t('admin.org.subtitle')}
         actions={
-          <Button icon={<Plus className="h-4 w-4" aria-hidden />} onClick={() => setEditing({ mode: 'add', parent: null })}>
-            {t('admin.org.addTop')}
-          </Button>
+          <>
+            <Button variant="secondary" icon={<RefreshCw className="h-4 w-4" aria-hidden />} onClick={() => setConfirmSync(true)}>
+              {t('admin.org.sync.button')}
+            </Button>
+            <Button icon={<Plus className="h-4 w-4" aria-hidden />} onClick={() => setEditing({ mode: 'add', parent: null })}>
+              {t('admin.org.addTop')}
+            </Button>
+          </>
         }
       />
+
+      {report && (
+        <Card>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h2 className="text-base font-semibold text-ink">{t('admin.org.sync.resultTitle')}</h2>
+            <Button size="sm" variant="ghost" onClick={() => setReport(null)}>
+              {t('common.close')}
+            </Button>
+          </div>
+          <dl className="mt-2 divide-y divide-line text-sm">
+            {(
+              [
+                ['created', report.sbus_created.join(', ') || '—'],
+                ['linked', report.sbus_linked.join(', ') || '—'],
+                ['fixed', report.fixed_types.join(', ') || '—'],
+                ['off', report.sbus_switched_off.join(', ') || '—'],
+                ['kept', report.sbus_kept.join(', ') || '—'],
+                ['departments', String(report.departments_created)],
+                ['functions', String(report.functions_created)],
+              ] as const
+            ).map(([k, v]) => (
+              <div key={k} className="grid grid-cols-[minmax(0,12rem)_minmax(0,1fr)] gap-3 py-2">
+                <dt className="text-ink-muted">{t(`admin.org.sync.${k}`)}</dt>
+                <dd className="text-ink">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </Card>
+      )}
 
       {units.isLoading ? (
         <PageSkeleton rows={6} />
@@ -124,6 +178,15 @@ export default function OrgPage() {
       )}
 
       {editing && <UnitDialog editing={editing} onClose={() => setEditing(null)} />}
+      <ConfirmDialog
+        open={confirmSync}
+        onOpenChange={(o) => !o && setConfirmSync(false)}
+        title={t('admin.org.sync.confirmTitle')}
+        description={t('admin.org.sync.confirmBody')}
+        confirmLabel={t('admin.org.sync.button')}
+        loading={sync.isPending}
+        onConfirm={() => sync.mutate(undefined)}
+      />
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(o) => !o && setDeleting(null)}

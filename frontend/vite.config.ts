@@ -14,6 +14,17 @@ export default defineConfig(({ mode }) => {
     envDir,
     plugins: [react()],
     resolve: { alias: { '@': path.resolve(here, 'src') } },
+    build: {
+      rollupOptions: {
+        output: {
+          // All libraries in one long-lived file. (Splitting them further made two library files import each
+          // other, which stops the app from starting.)
+          manualChunks(id: string) {
+            return id.includes('node_modules') ? 'vendor' : undefined;
+          },
+        },
+      },
+    },
     server: { host: true, port, strictPort: true },
     preview: { host: true, port },
   };

@@ -9,7 +9,7 @@ from app.modules.evaluation.models import ReviewAssignment
 from app.modules.initiatives.models import Initiative, InitiativeMember
 from app.shared import cache
 
-IMPACT_STATES = {"PILOT", "PRODUCTION", "IMPACT_VERIFIED", "SCALED"}
+IMPACT_STATES = {"PILOT", "PRODUCTION", "IMPACT_VERIFIED"}
 
 
 def initiative_role(db: Session, cu: CurrentUser, ini: Initiative) -> str | None:

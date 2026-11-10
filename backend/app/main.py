@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from sqlalchemy import func, select
 
 from app.core.config import settings
@@ -22,11 +23,14 @@ from app.modules.identity.accounts import router as accounts_router
 from app.modules.identity.models import User
 from app.modules.identity.router import router as identity_router
 from app.modules.identity.sbu import ensure_sbus
+from app.modules.identity.sso import router as sso_router
 from app.modules.initiatives.router import router as initiatives_router
 from app.modules.masterdata.router import router as masterdata_router
+from app.modules.projects.router import router as projects_router
+from app.modules.registry.router import router as registry_router
 from app.modules.submissions.router import router as submissions_router
 from app.modules.teams.router import router as teams_router
-from app.seed_reference import ensure_templates
+from app.seed_reference import ensure_settings, ensure_simple_workflow, ensure_templates
 from app.shared.models.base import Base, utcnow
 from app.workers import scheduler
 
@@ -50,8 +54,13 @@ async def lifespan(_: FastAPI):
             log.info("Empty database: loading demo data…")
             seed_database(db)
             log.info("Demo data loaded.")
+        if not settings.seed_on_start:
+            from app.bootstrap import bootstrap
+            bootstrap(db)
         ensure_sbus(db)
         ensure_templates(db)
+        ensure_settings(db)
+        ensure_simple_workflow(db)
     finally:
         db.close()
     if not SERVERLESS:
@@ -66,6 +75,7 @@ app = FastAPI(title=f"{settings.app_name} API", version="1.0.0", lifespan=lifesp
 
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origin_list, allow_credentials=True,
                    allow_methods=["*"], allow_headers=["*"], expose_headers=["X-Request-Id", "Date", "Content-Disposition"])
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 install_error_handlers(app)
 
 if SERVERLESS:
@@ -77,8 +87,9 @@ if SERVERLESS:
             await run_in_threadpool(scheduler.run_once)
         return response
 
-for r in (identity_router, accounts_router, admin_router, masterdata_router, challenges_router, teams_router, submissions_router,
-          evaluation_router, judges_router, gates_router, initiatives_router, delivery_router, analytics_router):
+for r in (identity_router, sso_router, accounts_router, admin_router, masterdata_router, challenges_router, teams_router, submissions_router,
+          evaluation_router, judges_router, gates_router, initiatives_router, delivery_router, analytics_router,
+          registry_router, projects_router):
     app.include_router(r, prefix=settings.api_prefix)
 
 

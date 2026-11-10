@@ -41,11 +41,27 @@ class User(Base, StdColumns):
     joined_on = mapped_column(Date, nullable=True)
     primary_org_unit_id = ref()
     manager_id = ref()
+    pending_manager_email = sc(200, nullable=True)  # manager named at sign-up who has no account yet; linked when they join
+    function_name = sc(150, nullable=True)          # typed at sign-up when the function is not in the list
+    department_name = sc(150, nullable=True)        # typed at sign-up when the department is not in the list
     phone = sc(30, nullable=True)
     locale = sc(10, default="en")
     has_corporate_login = flag(True)
     is_active = flag(True)
     last_login_at = ts()
+    # ProjectFlow single sign-on. Kept here only: nothing is ever written to ProjectFlow.
+    projectflow_user_id = integer()                 # ProjectFlow users.id; NULL for people who signed up on the Hub
+    is_projectflow_native = flag(False)             # True when the account was created by a ProjectFlow sign-on
+    projectflow_role = sc(40, nullable=True)        # role in ProjectFlow at the last sign-on (e.g. "dmd")
+    sso_roles = json_col(list)                      # Hub roles the sign-on granted, so a demotion removes only those
+
+
+class SsoTokenUse(Base, StdColumns):
+    """Each ProjectFlow sign-on token works once. Its id (jti) is kept until it would have expired anyway."""
+    __tablename__ = "sso_token_uses"
+    jti = sc(64, unique=True)
+    projectflow_user_id = integer()
+    expires_at = ts()
 
 
 class Role(Base, StdColumns):

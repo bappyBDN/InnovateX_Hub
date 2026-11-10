@@ -322,6 +322,20 @@ def _unit_usage(db: Session, unit: OrgUnit) -> list[str]:
     return used
 
 
+@router.post("/org-units/sync-projectflow")
+def sync_org_from_projectflow(request: Request, cu: CurrentUser = Depends(require_roles("SUPER_ADMIN", "ADMIN")),
+                              db: Session = Depends(get_db)):
+    """SBUs, their departments and functions as they are in ProjectFlow (read only; see pf_org.py)."""
+    from app.modules.identity import pf_org
+    report = pf_org.sync(db, cu.id)
+    audit(db, cu.id, "CONFIG_CHANGE", "org_unit", None,
+          f"Synced organization from ProjectFlow: {len(report['sbus_created'])} new SBU(s), "
+          f"{report['departments_created']} department(s), {report['functions_created']} function(s)", {},
+          request.state.request_id)
+    db.commit()
+    return report
+
+
 @router.delete("/org-units/{unit_id}")
 def delete_org_unit(unit_id: str, request: Request, cu: CurrentUser = Depends(require_roles("SUPER_ADMIN", "ADMIN")),
                     db: Session = Depends(get_db)):

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, clearToken, getToken, setServerOffsetMs, setToken } from '@/api/client';
 import { queryKeys } from '@/api/queryKeys';
-import i18n from '@/i18n';
+import { setLanguage } from '@/i18n';
 import type { Me } from './types';
 
 interface AuthContextValue {
@@ -11,6 +11,7 @@ interface AuthContextValue {
   isLoading: boolean;
   error: unknown;
   login: (email: string, password: string) => Promise<Me>;
+  loginWithSso: (ssoToken: string) => Promise<Me>;
   logout: () => void;
   refetchMe: () => void;
 }
@@ -49,7 +50,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTokenState(res.access_token);
       qc.clear();
       const me = await qc.fetchQuery({ queryKey: queryKeys.me, queryFn: () => api.get<Me>('/me') });
-      if (me.locale && !localStorage.getItem('ix.lang')) void i18n.changeLanguage(me.locale);
+      if (me.locale && !localStorage.getItem('ix.lang')) void setLanguage(me.locale);
+      return me;
+    },
+    [qc],
+  );
+
+  /** Single sign-on from ProjectFlow: trades its one-time token for a normal session. */
+  const loginWithSso = useCallback(
+    async (ssoToken: string) => {
+      const res = await api.post<LoginResponse>('/auth/sso-login', { token: ssoToken }, { noAuthRedirect: true });
+      setToken(res.access_token);
+      setTokenState(res.access_token);
+      qc.clear();
+      const me = await qc.fetchQuery({ queryKey: queryKeys.me, queryFn: () => api.get<Me>('/me') });
+      if (me.locale && !localStorage.getItem('ix.lang')) void setLanguage(me.locale);
       return me;
     },
     [qc],
@@ -68,10 +83,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading: !!token && meQuery.isLoading,
       error: meQuery.error,
       login,
+      loginWithSso,
       logout,
       refetchMe: () => void meQuery.refetch(),
     }),
-    [token, meQuery.data, meQuery.isLoading, meQuery.error, meQuery.refetch, login, logout],
+    [token, meQuery.data, meQuery.isLoading, meQuery.error, meQuery.refetch, login, loginWithSso, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,0 +1,196 @@
+{
+  "projectRewards": {
+    "title": "Project Rewards",
+    "subtitle": "AI and AES team projects with live progress from ProjectFlow and Process Brain, the processes and RACI behind each one, and reward challenges for the people who deliver them.",
+    "import": "Import & sync now",
+    "imported": "{{matched}} projects tracked ({{created}} new, {{updated}} updated, {{removed}} removed).",
+    "lastImport": "Last import {{when}}",
+    "search": "Search by project, task, process or person…",
+    "show": "Show",
+    "views": {
+      "all": "All projects",
+      "almost": "75% or more done",
+      "challenge": "With an active challenge",
+      "none": "Without an active challenge"
+    },
+    "stats": {
+      "tracked": "Projects tracked",
+      "active": "Active challenges",
+      "pool": "Reward pool (active)",
+      "almost": "75% or more done"
+    },
+    "emptyTitle": "No projects yet",
+    "emptyBody": "Import the AI and AES team projects from ProjectFlow and Process Brain to start.",
+    "noMatch": "No projects match",
+    "almost": "🔥 Almost Reaching Reward!",
+    "remaining": "{{pct}}% remaining",
+    "progressOf": "Progress of {{name}}",
+    "dueOn": "Project due {{date}}",
+    "bonus": "Reward bonus",
+    "reachBy": "Reach {{pct}}% by {{date}}",
+    "timeLeftLabel": "Time left",
+    "timeLeft": "{{days}} days and {{hours}} hours left",
+    "days_one": "day",
+    "days_other": "days",
+    "hours_one": "hour",
+    "hours_other": "hours",
+    "deadlinePassed": "Deadline passed",
+    "achieved": "Reward {{amount}} achieved on {{date}}",
+    "expired": "Challenge for {{amount}} expired on {{date}}",
+    "setChallenge": "Set reward challenge",
+    "updateChallenge": "Update challenge",
+    "newChallenge": "New challenge",
+    "liveSource": "Live from {{source}}",
+    "lastSync": "Synced {{when}}",
+    "syncNow": "Sync now",
+    "syncing": "Syncing…",
+    "synced": "{{code}} synced: {{pct}}%",
+    "roles": {
+      "pm": "Project Manager",
+      "tl": "Team Lead",
+      "dev": "Developers"
+    },
+    "memberRoles": {
+      "Project Manager": "Project Manager",
+      "Team Lead": "Team Lead",
+      "Developer": "Developer"
+    },
+    "status": {
+      "active": "Active",
+      "planning": "Planning",
+      "completed": "Completed",
+      "on_hold": "On hold",
+      "not_started": "Not started"
+    },
+    "health": {
+      "green": "On track",
+      "amber": "At risk",
+      "red": "Off track"
+    },
+    "form": {
+      "title": "Set a reward challenge — {{code}}",
+      "editTitle": "Update the reward challenge — {{code}}",
+      "amount": "Reward amount (BDT ৳)",
+      "targetPct": "Target completion (%)",
+      "targetPctHelp": "Now at {{now}}%",
+      "deadline": "Target deadline",
+      "deadlineHelp": "Date and time in {{tz}}",
+      "teamLead": "Team Lead",
+      "teamLeadHelp": "The project's own Team Lead.",
+      "keepLead": "Keep {{name}}",
+      "noLead": "No Team Lead — choose one",
+      "note": "Message to the team (optional)",
+      "willEmail": "An email alert will go to: {{people}}",
+      "submit": "Save and email the people chosen",
+      "saved": "Reward challenge saved",
+      "updated": "Reward challenge updated",
+      "emailed": "Email alert sent to {{people}}",
+      "savedNoEmail": "Challenge saved, but none of the people chosen has an email address, so no alert was sent.",
+      "usePf": "Use the project deadline",
+      "usePfHelp": "{{date}}. If the project deadline changes, the reward deadline moves with it.",
+      "pfPassed": "The project deadline ({{date}}) has already passed. Choose a custom deadline.",
+      "pfNone": "This project has no deadline. Choose a custom deadline.",
+      "useCustom": "Set a custom deadline for this reward",
+      "useCustomHelp": "Only for this reward. It stays fixed even if the project deadline changes.",
+      "customDate": "Custom deadline",
+      "recipients": "Reward goes to",
+      "recipientsHelp": "Everyone in the RACI of this project's processes is chosen for you. Untick anyone who should not get it.",
+      "groupProject": "Project team",
+      "groupRaci": "RACI of the project's processes ({{count}})",
+      "groupAes": "AES team lead",
+      "selectAll": "Select all",
+      "clear": "Clear",
+      "noEmail": "no email",
+      "aesNotSet": "No AES team lead is set yet. A super admin can set the name and email in Admin → Settings.",
+      "chosen": "{{count}} chosen · {{emails}} will get an email",
+      "noneChosen": "Choose at least one person for this reward."
+    },
+    "tasksDone": "{{done}} of {{total}} tasks completed",
+    "noTasks": "No tasks in ProjectFlow yet",
+    "peopleTitle": "People",
+    "raci": {
+      "responsible": "Responsible",
+      "accountable": "Accountable",
+      "reviewer": "Reviewer",
+      "informed": "Informed"
+    },
+    "details": {
+      "title": "Project details",
+      "strategic": "Strategic objective",
+      "objective": "Objective",
+      "outcome": "Expected outcome",
+      "type": "Type",
+      "priority": "Priority",
+      "methodology": "Methodology",
+      "criticality": "Criticality",
+      "sponsor": "Sponsor",
+      "budget": "Budget",
+      "dates": "Start → due",
+      "forecast": "Forecast finish"
+    },
+    "tasks": {
+      "title": "Tasks",
+      "blocked": "Blocked",
+      "dueOn": "Due {{date}}",
+      "doneOn": "Completed {{date}}",
+      "noDate": "No due date set",
+      "section": "Project details & tasks"
+    },
+    "taskStatus": {
+      "completed": "Completed",
+      "in_progress": "In progress",
+      "ongoing": "Ongoing",
+      "draft": "Draft",
+      "backlog": "Backlog",
+      "ready": "Ready",
+      "waiting": "Waiting",
+      "planning": "Planning",
+      "on_hold": "On hold",
+      "in_review": "In review",
+      "blocked": "Blocked"
+    },
+    "deadlineFromPf": "Follows the project deadline",
+    "deadlineByAdmin": "Deadline set by admin",
+    "importPartial": "{{source}} could not be read: {{message}}",
+    "noTasksPb": "Progress from Process Brain (no task list)",
+    "sources": {
+      "projectflow": "ProjectFlow",
+      "process_brain": "Process Brain"
+    },
+    "team": {
+      "label": "Team",
+      "all": "All projects",
+      "AI": "AI team projects",
+      "AES": "AES team projects"
+    },
+    "teamBadge": {
+      "AI": "AI team",
+      "AES": "AES team"
+    },
+    "phases": {
+      "title": "Delivery phases",
+      "req": "Requirements",
+      "dev": "Development",
+      "test": "Testing",
+      "go": "Go-live"
+    },
+    "processes": {
+      "title": "Processes & RACI",
+      "summary": "{{groups}} process groups · {{subs}} sub-processes · {{people}} RACI people",
+      "noRaci": "No RACI recorded for this process yet",
+      "wholeWing": "Whole wing"
+    },
+    "raciRoles": {
+      "R": "Responsible",
+      "A": "Accountable",
+      "C": "Consulted",
+      "I": "Informed",
+      "DO": "Data owner"
+    },
+    "removedList": "Removed because they are no longer in ProjectFlow or Process Brain: {{names}}",
+    "removedOne": "{{code}} {{name}} is no longer in ProjectFlow or Process Brain, so it was removed.",
+    "autoSyncOn": "Auto import & sync daily at {{time}} ({{tz}})",
+    "autoSyncOff": "Daily auto sync is off",
+    "autoSyncLast": "Last auto run: {{result}}"
+  }
+}

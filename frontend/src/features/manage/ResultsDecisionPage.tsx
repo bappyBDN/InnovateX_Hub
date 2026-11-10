@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowRight, CheckCircle2, Send, ShieldCheck, Trophy, UserCheck } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Send, Trophy, UserCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
@@ -13,7 +13,7 @@ import {
   ButtonLink,
   Card,
   CardHeader,
-  ConfirmDialog,
+  
   Dialog,
   EmptyState,
   ErrorState,
@@ -90,7 +90,7 @@ export default function ResultsDecisionPage() {
   const { id = '' } = useParams();
   const qc = useQueryClient();
   const [form, setForm] = useState<Record<string, DecisionState>>({});
-  const [dialog, setDialog] = useState<'approve' | 'publish' | null>(null);
+  const [dialog, setDialog] = useState<'publish' | null>(null);
   const [converted, setConverted] = useState<Record<string, string>>({});
 
   const query = useQuery({
@@ -130,10 +130,10 @@ export default function ResultsDecisionPage() {
     onError: (e) => toast.error(errorMessage(e)),
   });
   const act = useMutation({
-    mutationFn: (name: 'approve' | 'publish') => api.post(`/manage/challenges/${id}/results/actions/${name}`),
-    onSuccess: (_r, name) => {
+    mutationFn: (name: 'publish') => api.post(`/manage/challenges/${id}/results/actions/${name}`),
+    onSuccess: () => {
       setDialog(null);
-      toast.success(name === 'approve' ? t('resultsDecision.approved') : t('resultsDecision.publishedToast'));
+      toast.success(t('resultsDecision.publishedToast'));
       refresh();
     },
     onError: (e) => {
@@ -171,8 +171,7 @@ export default function ResultsDecisionPage() {
   const update = (entryId: string, patch: Partial<DecisionState>) => setForm((f) => ({ ...f, [entryId]: { ...f[entryId], ...patch } }));
   const steps: [string, boolean, boolean][] = [
     [t('resultsDecision.stepRecord'), data.status !== 'NONE', data.status === 'NONE'],
-    [t('resultsDecision.stepApprove'), data.status === 'APPROVED' || published, data.status === 'DRAFT'],
-    [t('resultsDecision.stepPublish'), published, data.status === 'APPROVED'],
+    [t('resultsDecision.stepPublish'), published, data.status === 'DRAFT' || data.status === 'APPROVED'],
   ];
 
   const winnersPreview = (
@@ -262,17 +261,7 @@ export default function ResultsDecisionPage() {
               >
                 {t('resultsDecision.save')}
               </Button>
-              {data.status === 'DRAFT' && (
-                <Button
-                  icon={<ShieldCheck className="h-4 w-4" aria-hidden />}
-                  disabled={dirty}
-                  disabledReason={t('resultsDecision.unsaved')}
-                  onClick={() => setDialog('approve')}
-                >
-                  {t('resultsDecision.approve')}
-                </Button>
-              )}
-              {data.status === 'APPROVED' && (
+              {(data.status === 'DRAFT' || data.status === 'APPROVED') && (
                 <Button
                   icon={<Send className="h-4 w-4" aria-hidden />}
                   disabled={dirty}
@@ -294,7 +283,7 @@ export default function ResultsDecisionPage() {
         </span>
       </Callout>
 
-      <ol className="grid gap-2 sm:grid-cols-3">
+      <ol className="grid gap-2 sm:grid-cols-2">
         {steps.map(([label, done, current]) => (
           <li
             key={label}
@@ -491,15 +480,6 @@ export default function ResultsDecisionPage() {
         </div>
       )}
 
-      <ConfirmDialog
-        open={dialog === 'approve'}
-        onOpenChange={(o) => !o && setDialog(null)}
-        title={t('resultsDecision.approveTitle')}
-        description={t('resultsDecision.approveBody')}
-        confirmLabel={t('resultsDecision.approve')}
-        loading={act.isPending}
-        onConfirm={() => act.mutate('approve')}
-      />
       <Dialog
         open={dialog === 'publish'}
         onOpenChange={(o) => !o && setDialog(null)}

@@ -94,6 +94,20 @@
         "DEPARTMENT": "Department",
         "TEAM": "Team",
         "PROJECT": "Project"
+      },
+      "sync": {
+        "button": "Sync from ProjectFlow",
+        "done": "Organization synced from ProjectFlow",
+        "confirmTitle": "Sync SBUs, departments and functions from ProjectFlow?",
+        "confirmBody": "Every ProjectFlow company becomes an SBU, with the departments and functions its people and projects use. SBUs that already exist are linked and keep their names. SBUs that are not in ProjectFlow are switched off only if nobody uses them. Nothing is deleted, and you can run this again at any time.",
+        "resultTitle": "Result of the ProjectFlow sync",
+        "created": "New SBUs",
+        "linked": "Existing SBUs linked",
+        "fixed": "Now counted as SBUs",
+        "off": "Switched off (not in ProjectFlow)",
+        "kept": "Not in ProjectFlow but still used",
+        "departments": "Departments added",
+        "functions": "Functions added"
       }
     },
     "master": {
@@ -369,7 +383,14 @@
         "triage_sla_days": "First response to a new idea (working days)",
         "review_sla_days": "Review time (working days)",
         "retention_years_closed": "Keep closed ideas (years)",
-        "team_submit_leader_only": "Only the team leader can submit"
+        "team_submit_leader_only": "Only the team leader can submit",
+        "aes_team_lead_name": "AES team lead — name",
+        "aes_team_lead_email": "AES team lead — email",
+        "projects_auto_sync_enabled": "Daily project import & sync (Project Rewards)",
+        "projects_auto_sync_time": "Daily project sync time (HH:MM)",
+        "projects_last_auto_sync": "Last daily project sync",
+        "aes_team_lead_designation": "AES team lead — designation",
+        "aes_team_lead_employee_id": "AES team lead — employee number"
       },
       "flag": {
         "PEOPLES_CHOICE": "People's Choice voting",

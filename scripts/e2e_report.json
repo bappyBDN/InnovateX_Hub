@@ -1,0 +1,1433 @@
+{
+  "challenge": {
+    "id": "01a11107-363b-75ca-b37d-ac86c4108169",
+    "slug": "e2e-kaizen-cut-rework-at-the-finishing-line-114407",
+    "code": "CHL-2026-012"
+  },
+  "entries": {
+    "priya": {
+      "id": "01a11107-8db8-79fc-8cc1-4e7c64c238c4",
+      "code": "ENT-2026-012-0001"
+    },
+    "omar": {
+      "id": "01a11107-a293-7f18-a735-ae130f7201fc",
+      "code": "ENT-2026-012-0002"
+    },
+    "lamia": {
+      "id": "01a11107-b2bf-739e-aa0e-c45cc5914523",
+      "code": "ENT-2026-012-0003"
+    }
+  },
+  "log": [
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "owner",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "omar",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "lamia",
+      "method": "GET",
+      "path": "/me",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/domains",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/forms",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/scorecards",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/challenges",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/manage/challenges/01a11107-363b-75ca-b37d-ac86c4108169",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/manage/challenges/01a11107-363b-75ca-b37d-ac86c4108169",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "lamia",
+      "method": "POST",
+      "path": "/challenges",
+      "status": 404,
+      "expect": 404,
+      "ok": true,
+      "label": "an employee cannot create a challenge",
+      "negative": true
+    },
+    {
+      "who": "owner",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/judges",
+      "status": 404,
+      "expect": 404,
+      "ok": true,
+      "label": "only the admin chooses judges",
+      "negative": true
+    },
+    {
+      "who": "lamia",
+      "method": "GET",
+      "path": "/challenges/e2e-kaizen-cut-rework-at-the-finishing-line-114407",
+      "status": 404,
+      "expect": 404,
+      "ok": true,
+      "label": "a DRAFT challenge is hidden from staff",
+      "negative": true
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/actions/publish",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/actions/publish",
+      "status": 400,
+      "expect": 400,
+      "ok": true,
+      "label": "cannot publish twice",
+      "negative": true
+    },
+    {
+      "who": "lamia",
+      "method": "GET",
+      "path": "/challenges/e2e-kaizen-cut-rework-at-the-finishing-line-114407",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/entries",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "omar",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/entries",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "lamia",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/entries",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/entries",
+      "status": 409,
+      "expect": 409,
+      "ok": true,
+      "label": "no duplicate registration",
+      "negative": true
+    },
+    {
+      "who": "anika",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/entries",
+      "status": 400,
+      "expect": 400,
+      "ok": true,
+      "label": "declaration is required",
+      "negative": true
+    },
+    {
+      "who": "priya",
+      "method": "GET",
+      "path": "/entries/01a11107-a293-7f18-a735-ae130f7201fc",
+      "status": 404,
+      "expect": 404,
+      "ok": true,
+      "label": "a participant cannot open a rival's entry",
+      "negative": true
+    },
+    {
+      "who": "judge1",
+      "method": "GET",
+      "path": "/entries/01a11107-a293-7f18-a735-ae130f7201fc",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "lamia",
+      "method": "POST",
+      "path": "/challenges/e2e-kaizen-cut-rework-at-the-finishing-line-114407/questions",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/questions",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/questions/01a11107-d2ed-7c34-b7e3-dfb4d4d22b36/answer",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "GET",
+      "path": "/entries/01a11107-8db8-79fc-8cc1-4e7c64c238c4/submissions/methodology",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "POST",
+      "path": "/entries/01a11107-8db8-79fc-8cc1-4e7c64c238c4/submissions/methodology/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "omar",
+      "method": "GET",
+      "path": "/entries/01a11107-a293-7f18-a735-ae130f7201fc/submissions/methodology",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "omar",
+      "method": "POST",
+      "path": "/entries/01a11107-a293-7f18-a735-ae130f7201fc/submissions/methodology/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "lamia",
+      "method": "GET",
+      "path": "/entries/01a11107-b2bf-739e-aa0e-c45cc5914523/submissions/methodology",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "lamia",
+      "method": "POST",
+      "path": "/entries/01a11107-b2bf-739e-aa0e-c45cc5914523/submissions/methodology/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/actions/close-phase",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "GET",
+      "path": "/entries/01a11107-8db8-79fc-8cc1-4e7c64c238c4",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "omar",
+      "method": "GET",
+      "path": "/entries/01a11107-a293-7f18-a735-ae130f7201fc",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "lamia",
+      "method": "GET",
+      "path": "/entries/01a11107-b2bf-739e-aa0e-c45cc5914523",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "PUT",
+      "path": "/entries/01a11107-8db8-79fc-8cc1-4e7c64c238c4/submissions/methodology",
+      "status": 409,
+      "expect": 409,
+      "ok": true,
+      "label": "methodology is locked after the deadline",
+      "negative": true
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/judges",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/manage/challenges/01a11107-363b-75ca-b37d-ac86c4108169",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/review-rounds/01a11107-396a-715f-af62-3b63460077ac/actions/assign",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "GET",
+      "path": "/review-assignments/01a11108-23ca-724d-9e2b-26ecb7ea2fdb",
+      "status": 404,
+      "expect": 404,
+      "ok": true,
+      "label": "judges cannot open each other's reviews",
+      "negative": true
+    },
+    {
+      "who": "judge1",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "GET",
+      "path": "/review-assignments/01a11108-221b-7e4d-8614-5e82c7c8492a",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "POST",
+      "path": "/review-assignments/01a11108-221b-7e4d-8614-5e82c7c8492a/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "GET",
+      "path": "/review-assignments/01a11108-2ebf-7e14-8833-ebabfa15077a",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "POST",
+      "path": "/review-assignments/01a11108-2ebf-7e14-8833-ebabfa15077a/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "GET",
+      "path": "/review-assignments/01a11108-375c-7451-83a4-a13bf6583170",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "POST",
+      "path": "/review-assignments/01a11108-375c-7451-83a4-a13bf6583170/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "GET",
+      "path": "/review-assignments/01a11108-23ca-724d-9e2b-26ecb7ea2fdb",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "POST",
+      "path": "/review-assignments/01a11108-23ca-724d-9e2b-26ecb7ea2fdb/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "GET",
+      "path": "/review-assignments/01a11108-396c-7a90-9c52-7b528e472563",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "POST",
+      "path": "/review-assignments/01a11108-396c-7a90-9c52-7b528e472563/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "GET",
+      "path": "/review-assignments/01a11108-28eb-71d1-bb0f-a60d84674046",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "POST",
+      "path": "/review-assignments/01a11108-28eb-71d1-bb0f-a60d84674046/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "GET",
+      "path": "/review-assignments/01a11108-31e6-7094-bb4b-d20e82905fef",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "POST",
+      "path": "/review-assignments/01a11108-31e6-7094-bb4b-d20e82905fef/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "GET",
+      "path": "/review-assignments/01a11108-3bc8-7cba-8aec-e4d860beb1a9",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "POST",
+      "path": "/review-assignments/01a11108-3bc8-7cba-8aec-e4d860beb1a9/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "GET",
+      "path": "/review-assignments/01a11108-2a7b-735c-adf7-8c5b4327939a",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "POST",
+      "path": "/review-assignments/01a11108-2a7b-735c-adf7-8c5b4327939a/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "GET",
+      "path": "/review-assignments/01a11108-3da9-7f21-9523-142f198d533a",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "POST",
+      "path": "/review-assignments/01a11108-3da9-7f21-9523-142f198d533a/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "GET",
+      "path": "/review-assignments/01a11108-3f54-7d77-9968-c737784e7f17",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "POST",
+      "path": "/review-assignments/01a11108-3f54-7d77-9968-c737784e7f17/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/manage/challenges/01a11107-363b-75ca-b37d-ac86c4108169",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "owner",
+      "method": "GET",
+      "path": "/review-rounds/01a11107-396a-715f-af62-3b63460077ac/results",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "owner",
+      "method": "PATCH",
+      "path": "/review-rounds/01a11107-396a-715f-af62-3b63460077ac/shortlist-rule",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "owner",
+      "method": "POST",
+      "path": "/review-rounds/01a11107-396a-715f-af62-3b63460077ac/shortlist/actions/propose",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "owner",
+      "method": "GET",
+      "path": "/shortlists/01a11109-9672-7edc-a083-366b9a68c45f",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "owner",
+      "method": "GET",
+      "path": "/review-rounds/01a11107-396a-715f-af62-3b63460077ac/feedback",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "owner",
+      "method": "PUT",
+      "path": "/feedback/01a11109-9aa1-7b9e-ab55-5c4be7d918b9",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "owner",
+      "method": "POST",
+      "path": "/shortlists/01a11109-9672-7edc-a083-366b9a68c45f/actions/publish",
+      "status": 409,
+      "expect": 409,
+      "ok": true,
+      "label": "must confirm before publishing",
+      "negative": true
+    },
+    {
+      "who": "owner",
+      "method": "POST",
+      "path": "/shortlists/01a11109-9672-7edc-a083-366b9a68c45f/actions/confirm",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "owner",
+      "method": "POST",
+      "path": "/shortlists/01a11109-9672-7edc-a083-366b9a68c45f/actions/publish",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "GET",
+      "path": "/entries/01a11107-8db8-79fc-8cc1-4e7c64c238c4",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "omar",
+      "method": "GET",
+      "path": "/entries/01a11107-a293-7f18-a735-ae130f7201fc",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "lamia",
+      "method": "GET",
+      "path": "/entries/01a11107-b2bf-739e-aa0e-c45cc5914523",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "GET",
+      "path": "/entries/01a11107-8db8-79fc-8cc1-4e7c64c238c4",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "omar",
+      "method": "GET",
+      "path": "/entries/01a11107-a293-7f18-a735-ae130f7201fc",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "lamia",
+      "method": "GET",
+      "path": "/entries/01a11107-b2bf-739e-aa0e-c45cc5914523",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/actions/close-phase",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/actions/close-phase",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/actions/close-phase",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/manage/challenges/01a11107-363b-75ca-b37d-ac86c4108169",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "POST",
+      "path": "/milestones",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "PUT",
+      "path": "/gates/challenge_entry/01a11107-8db8-79fc-8cc1-4e7c64c238c4/PROTOTYPE",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/gates/01a11109-fe14-72b8-bbb2-30978aefc0a6/send-for-review",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "omar",
+      "method": "POST",
+      "path": "/milestones",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "omar",
+      "method": "PUT",
+      "path": "/gates/challenge_entry/01a11107-a293-7f18-a735-ae130f7201fc/PROTOTYPE",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/gates/01a1110a-0fe8-7b54-8d68-da15e14370a5/send-for-review",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/actions/close-phase",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/gates/challenge_entry/01a11107-8db8-79fc-8cc1-4e7c64c238c4",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/gates/challenge_entry/01a11107-a293-7f18-a735-ae130f7201fc",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "POST",
+      "path": "/gate-votes/01a1110a-04a3-766b-96bd-8a42296fb505",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "POST",
+      "path": "/gate-votes/01a1110a-05a6-7b48-900d-0432ecffe761",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "POST",
+      "path": "/gate-votes/01a1110a-1691-7274-ba5e-141f646c6a6f",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "POST",
+      "path": "/gate-votes/01a1110a-1785-7df7-9d41-fda5fc755c97",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "GET",
+      "path": "/entries/01a11107-8db8-79fc-8cc1-4e7c64c238c4",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "omar",
+      "method": "GET",
+      "path": "/entries/01a11107-a293-7f18-a735-ae130f7201fc",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/actions/close-phase",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "POST",
+      "path": "/entries/01a11107-8db8-79fc-8cc1-4e7c64c238c4/submissions/final/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "omar",
+      "method": "POST",
+      "path": "/entries/01a11107-a293-7f18-a735-ae130f7201fc/submissions/final/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/actions/close-phase",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/manage/challenges/01a11107-363b-75ca-b37d-ac86c4108169",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/manage/challenges/01a11107-363b-75ca-b37d-ac86c4108169",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/review-rounds/01a11107-3b12-7c5f-9303-83bdc62c857a/actions/assign",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "GET",
+      "path": "/review-assignments/01a1110a-c31f-7759-9795-4953664ad816",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "POST",
+      "path": "/review-assignments/01a1110a-c31f-7759-9795-4953664ad816/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "GET",
+      "path": "/review-assignments/01a1110a-cc6c-73db-86c8-e6dfcb991ab4",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge1",
+      "method": "POST",
+      "path": "/review-assignments/01a1110a-cc6c-73db-86c8-e6dfcb991ab4/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "GET",
+      "path": "/review-assignments/01a1110a-c4b6-7fe7-89a2-8a97f0cbdb16",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "POST",
+      "path": "/review-assignments/01a1110a-c4b6-7fe7-89a2-8a97f0cbdb16/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "GET",
+      "path": "/review-assignments/01a1110a-cdf3-7fdb-a01b-562160cd3394",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge2",
+      "method": "POST",
+      "path": "/review-assignments/01a1110a-cdf3-7fdb-a01b-562160cd3394/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "GET",
+      "path": "/review-assignments/01a1110a-c680-76cb-89f3-2efdd2442147",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "POST",
+      "path": "/review-assignments/01a1110a-c680-76cb-89f3-2efdd2442147/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "GET",
+      "path": "/review-assignments/01a1110a-d01f-7ea3-a213-78e961497762",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge3",
+      "method": "POST",
+      "path": "/review-assignments/01a1110a-d01f-7ea3-a213-78e961497762/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "GET",
+      "path": "/me/review-queue",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "GET",
+      "path": "/review-assignments/01a1110a-c845-7a1e-b120-74df3c6726e8",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "POST",
+      "path": "/review-assignments/01a1110a-c845-7a1e-b120-74df3c6726e8/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "GET",
+      "path": "/review-assignments/01a1110a-d2a3-7423-9251-ebbe2695bf16",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "judge4",
+      "method": "POST",
+      "path": "/review-assignments/01a1110a-d2a3-7423-9251-ebbe2695bf16/actions/submit",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/challenges/01a11107-363b-75ca-b37d-ac86c4108169/actions/close-phase",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/manage/challenges/01a11107-363b-75ca-b37d-ac86c4108169/results",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "PUT",
+      "path": "/manage/challenges/01a11107-363b-75ca-b37d-ac86c4108169/results/decisions",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/manage/challenges/01a11107-363b-75ca-b37d-ac86c4108169/results/actions/publish",
+      "status": 409,
+      "expect": 409,
+      "ok": true,
+      "label": "publish needs approval first",
+      "negative": true
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/manage/challenges/01a11107-363b-75ca-b37d-ac86c4108169/results/actions/approve",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/manage/challenges/01a11107-363b-75ca-b37d-ac86c4108169/results/actions/publish",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "lamia",
+      "method": "GET",
+      "path": "/results",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "priya",
+      "method": "GET",
+      "path": "/entries/01a11107-8db8-79fc-8cc1-4e7c64c238c4/feedback",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/entries/01a11107-8db8-79fc-8cc1-4e7c64c238c4/actions/convert-to-initiative",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    },
+    {
+      "who": "admin",
+      "method": "POST",
+      "path": "/entries/01a11107-8db8-79fc-8cc1-4e7c64c238c4/actions/convert-to-initiative",
+      "status": 409,
+      "expect": 409,
+      "ok": true,
+      "label": "cannot convert twice",
+      "negative": true
+    },
+    {
+      "who": "admin",
+      "method": "GET",
+      "path": "/initiatives/INNO-2026-000132",
+      "status": 200,
+      "expect": 200,
+      "ok": true,
+      "label": ""
+    }
+  ],
+  "passed": 155,
+  "failed": 0,
+  "elapsed_s": 311.101512
+}

@@ -147,6 +147,9 @@ export const api = {
   patch: <T = unknown>(path: string, body?: unknown) => request<T>('PATCH', path, { body: body ?? {} }),
   del: <T = unknown>(path: string, params?: Params) => request<T>('DELETE', path, { params }),
   upload: <T = unknown>(path: string, form: FormData) => request<T>('POST', path, { form }),
+  /** A protected file as a Blob (e.g. an image that needs the auth header). */
+  blob: async (path: string, params?: Params): Promise<Blob> =>
+    (await raw('GET', path, { params, headers: { Accept: '*/*' } })).blob(),
   /** Downloads a protected file (needs the auth header, so we fetch it as a blob). */
   download: async (path: string, filename?: string, params?: Params): Promise<void> => {
     const res = await raw('GET', path, { params, headers: { Accept: '*/*' } });

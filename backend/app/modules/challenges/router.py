@@ -337,7 +337,7 @@ def manage_list(status: str = "", domain: str = "", cu: CurrentUser = Depends(re
     items = []
     for ch in db.scalars(select(Challenge).where(Challenge.deleted_at.is_(None)).order_by(Challenge.created_at.desc())).all():
         svc.sync_if_stale(db, ch)
-        if status and ch.status_code != status:
+        if status and ch.status_code not in svc.STATUS_GROUPS.get(status, {status}):
             continue
         if domain and ch.domain_id != domain:
             continue
